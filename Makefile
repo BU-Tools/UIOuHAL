@@ -53,10 +53,15 @@ UHAL_LIBRARY_PATH = \
 endif
 
 UHAL_CXX_FLAGS = ${UHAL_INCLUDE_PATH}
-CXX_FLAGS+=${UHAL_CXX_FLAGS}
+
 
 UHAL_LIBRARY_FLAGS = ${UHAL_LIBRARY_PATH}
-LINK_LIBRARY_FLAGS+=${UHAL_LIBRARY_FLAGS}
+
+
+
+CXX_FLAGS          +=${UHAL_CXX_FLAGS}
+LINK_LIBRARY_FLAGS +=${UHAL_LIBRARY_FLAGS}
+LIBRARIES          += ${UHAL_LIBRARIES}
 
 .PHONY: all _all clean _cleanall build _buildall _cactus_env
 
@@ -90,4 +95,4 @@ lib/libUIOuHAL.so : obj/ProtocolUIO.o
 
 obj/%.o : src/%.cpp
 	mkdir -p obj
-	${CXX} ${CXX_FLAGS} $^ -o $@
+	${CXX} ${CXX_FLAGS} -c $^ -o $@

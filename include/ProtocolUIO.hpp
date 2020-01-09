@@ -89,7 +89,8 @@ namespace uhal {
 	 boost::posix_time::milliseconds(10)
 	 );
     virtual ~UIO ();
-  protected:
+    //  protected:
+  private:
     ValHeader implementWrite (const uint32_t& aAddr, const uint32_t& aValue);
     ValWord<uint32_t> implementRead (const uint32_t& aAddr,
 				     const uint32_t& aMask = defs::NOMASK);
@@ -107,8 +108,7 @@ namespace uhal {
     exception::exception* validate ( uint8_t* aSendBufferStart ,
 				     uint8_t* aSendBufferEnd ,
 				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyStartIt ,
-				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyEndIt ) {
-      return NULL;}
+				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyEndIt );
   private:
     int fd[uioaxi::DEVICES_MAX];
     uint32_t volatile * hw[uioaxi::DEVICES_MAX];

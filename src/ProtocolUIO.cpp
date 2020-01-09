@@ -64,19 +64,10 @@
 
 #include <setjmp.h> //for BUS_ERROR signal handling
 
-UHAL_REGISTER_EXTERNAL_CLIENT(UIO, "uioaxi-1.0", "Direct access to AXI slave via UIO")
 
 using namespace uioaxi;
 using namespace boost::filesystem;
 
-
-//Signal handling for sigbus
-sigjmp_buf static env;
-void static signal_handler(int sig){
-  if(SIGBUS == sig){
-    siglongjmp(env,sig);    
-  }
-}
 //This macro handles the possibility of a SIG_BUS signal and property throws an exception
 //The command you want to run is passed via ACESS and will be in a if{}else{} block, so
 //Call it appropriately. 
@@ -93,6 +84,17 @@ void static signal_handler(int sig){
   }else{ \
     ACCESS;					\
   }
+
+
+UHAL_REGISTER_EXTERNAL_CLIENT(uhal::UIO, "uioaxi-1.0", "Direct access to AXI slave via UIO")
+
+//Signal handling for sigbus
+sigjmp_buf static env;
+void static signal_handler(int sig){
+  if(SIGBUS == sig){
+    siglongjmp(env,sig);    
+  }
+}
 
 namespace uhal {  
 
@@ -350,4 +352,13 @@ namespace uhal {
     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
     return ValWord<uint32_t>(readval);
   }
+
+  exception::exception* UIO::validate ( uint8_t* /*aSendBufferStart*/ ,
+					uint8_t* /*aSendBufferEnd */,
+					std::deque< std::pair< uint8_t* , uint32_t > >::iterator /*aReplyStartIt*/ ,
+					std::deque< std::pair< uint8_t* , uint32_t > >::iterator /*aReplyEndIt*/ ) {
+    return NULL;
+  }
+  
 }
+
