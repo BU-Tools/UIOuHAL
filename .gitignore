@@ -1,8 +1,8 @@
 *~
+*#
+*/
+*
 !Makefile
-src/*
-!src/*.cpp
-!src/*.cxx
-!src/*.cc
+!src/
 
-!include
+!include/
