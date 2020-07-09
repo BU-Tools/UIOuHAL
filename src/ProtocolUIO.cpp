@@ -104,7 +104,7 @@ namespace uhal {
 	    ) :
     ClientInterface(aId,aUri,aTimeoutPeriod)
   { 
-    for (int i=0; i<uioaxi::DEVICES_MAX ; i++){ fd[i]=-1; hw[i]=NULL; }
+    for (int i=0; i<uioaxi::DEVICES_MAX ; i++){ fd[i]=-1; hw[i]=NULL; sizes[i]=0; }
     // Get the filename of the address table from the connection file. Then read it through the NodeTreeBuilder
     // The NodeTreeBuilder should be able to just use the existing node tree rather than rebuild a new one
     NodeTreeBuilder & mynodetreebuilder = NodeTreeBuilder::getInstance();
@@ -179,6 +179,7 @@ namespace uhal {
       //save the mapping
       addrs[devnum]=address1;
       strcpy(uionames[devnum],uioname);
+      sizes[devnum]=size;
       openDevice(devnum, size, uioname);
     }
 
@@ -191,6 +192,17 @@ namespace uhal {
   }
 
   UIO::~UIO () {
+    //unmap all mmaps
+    for (int i=0; i<uioaxi::DEVICES_MAX ; i++)
+      {
+	if(NULL != hw[i]){
+	  munmap((void *)(hw[i]),sizes[i]);
+	  hw[i] = NULL;
+	  sizes[i] = 0;
+	  close(fd[i]);
+	  fd[i] = -1;
+	}
+      }    
     log ( Debug() , "UIO: destructor" );
     sigaction(SIGBUS,&saBusError_old,NULL); //restore the signal handler from before creation for SIGBUS
   }
