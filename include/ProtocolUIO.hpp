@@ -113,6 +113,7 @@ namespace uhal {
     int fd[uioaxi::DEVICES_MAX];
     uint32_t volatile * hw[uioaxi::DEVICES_MAX];
     uint32_t addrs[uioaxi::DEVICES_MAX];
+    int      sizes[uioaxi::DEVICES_MAX];
     char uionames[uioaxi::DEVICES_MAX][128];
     uioaxi::DevAddr decodeAddress (uint32_t uaddr);
     std::vector< ValWord<uint32_t> > valwords;
