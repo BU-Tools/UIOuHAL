@@ -124,6 +124,12 @@ namespace uhal {
       // search through the file system to see if there is a uio that matches the name
       std::string uiopath = "/sys/class/uio/";
       std::string dvtpath = "/proc/device-tree/amba_pl/";
+      //Check if the amba_pl is actually amba_pl@0
+      if(directory_iterator(dvtpath) == directory_iterator){
+	//try alternate name
+	dvtpath = "/proc/device-tree/amba_pl@0/";
+      }      
+
       FILE *labelfile=0; 
       FILE *addrfile=0;
       FILE *sizefile=0; 
