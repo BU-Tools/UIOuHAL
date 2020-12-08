@@ -125,7 +125,7 @@ namespace uhal {
       std::string uiopath = "/sys/class/uio/";
       std::string dvtpath = "/proc/device-tree/amba_pl/";
       //Check if the amba_pl is actually amba_pl@0
-      if(directory_iterator(dvtpath) == directory_iterator){
+      if(directory_iterator(dvtpath) == directory_iterator()){
 	//try alternate name
 	dvtpath = "/proc/device-tree/amba_pl@0/";
       }      
