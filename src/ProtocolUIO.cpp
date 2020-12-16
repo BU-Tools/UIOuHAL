@@ -64,6 +64,7 @@
 
 #include <setjmp.h> //for BUS_ERROR signal handling
 
+#include <inttypes.h> //for PRI macros
 
 using namespace uioaxi;
 using namespace boost::filesystem;
@@ -98,28 +99,44 @@ void static signal_handler(int sig){
 
 namespace uhal {  
 
-  uint32_t UIO::SearchDeviceTree(std::string const & dvtPath,std::string const & name){
-    uint32_t address = 0;
+  uint64_t UIO::SearchDeviceTree(std::string const & dvtPath,std::string const & name){
+    uint64_t address = 0;
     FILE *labelfile=0; 
     char label[128];
     // traverse through the device-tree
     for (directory_iterator x(dvtPath); x!=directory_iterator(); ++x){
       if (!is_directory(x->path()) || 
 	  !exists(x->path()/"label")) {
-	break;
+	continue;
       }
       labelfile = fopen((x->path().native()+"/label").c_str(),"r");
       fgets(label,128,labelfile); 
       fclose(labelfile);
 
       if(!strcmp(label, name.c_str())){
-	//get address1 from the file name
-	int namesize=x->path().filename().native().size();
-	if(namesize<10) {
-	  log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format." );
+	//Get endpoint AXI address from path
+	// looks something like LABEL@DEADBEEFXX
+	std::string stringAddr=x->path().filename().native();        
+
+	//Check if we find the @
+	size_t addrStart = stringAddr.find("@");
+	if(addrStart == std::string::npos){
+	  log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format. Missing \"@\" " );
 	  break; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
+
 	}
-	address = std::strtoul( x->path().filename().native().substr(namesize-8,8).c_str() , 0, 16);
+
+
+	//Convert the found string into binary
+	if(addrStart+1 > stringAddr.size()){
+	  log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format. Missing size " );
+	  break; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
+
+	  }
+	stringAddr.substr(addrStart+1);
+
+	//Get the names's address from the path (in hex)
+	address = std::strtoull(stringAddr.c_str() , 0, 16);
 	break;
       }
     }
@@ -147,7 +164,7 @@ namespace uhal {
       // size should be read from /sys/class/uio*/maps/map0/size
       int devnum=-1, size=0;
       char uioname[128]="", sizechar[128]="", addrchar[128]=""; 
-      uint32_t address1=0, address2=0;
+      uint64_t address1=0, address2=0;
       // get the device number out from the node
       devnum = decodeAddress(lNode->getNode(*nodeId).getAddress()).device;
       // search through the file system to see if there is a uio that matches the name
@@ -179,8 +196,9 @@ namespace uhal {
 	  continue;
 	}
 	addrfile = fopen((x->path()/"maps/map0/addr").native().c_str(),"r");
-	fgets(addrchar,128,addrfile); fclose(addrfile);
-	address2 = std::strtoul( addrchar, 0, 16);
+	fgets(addrchar,128,addrfile); 
+	fclose(addrfile);
+	address2 = std::strtoull( addrchar, 0, 16);
 	if (address1 == address2){
 	  sizefile = fopen((x->path().native()+"/maps/map0/size").c_str(),"r");
 	  fgets(sizechar,128,sizefile); fclose(sizefile);
@@ -293,7 +311,7 @@ namespace uhal {
   UIO::implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode) {
     DevAddr da = decodeAddress(aAddr);
     if (checkDevice(da.device)) return ValWord<uint32_t>();
-    uint32_t lAddr ( da.word );
+    uint32_t lAddr = da.word ;
     std::vector<uint32_t>::const_iterator ptr;
     for (ptr = aValues.begin(); ptr < aValues.end(); ptr++){
       uint32_t writeval = *ptr;
@@ -320,7 +338,7 @@ namespace uhal {
   ValVector< uint32_t > 
   UIO::implementReadBlock ( const uint32_t& aAddr, const uint32_t& aSize, const defs::BlockReadWriteMode& aMode ) {
     DevAddr da = decodeAddress(aAddr);
-    uint32_t lAddr ( da.word );
+    uint32_t lAddr = da.word ;
     if (checkDevice(da.device)) return ValVector<uint32_t>();
     std::vector<uint32_t> read_vector(aSize);
     std::vector<uint32_t>::iterator ptr;
@@ -344,7 +362,7 @@ namespace uhal {
   }
 
   void
-  UIO::implementDispatch (boost::shared_ptr<Buffers> aBuffers) {
+  UIO::implementDispatch (boost::shared_ptr<Buffers> /*aBuffers*/) {
     log ( Debug(), "UIO: Dispatch");
     for (unsigned int i=0; i<valwords.size(); i++)
       valwords[i].valid(true);

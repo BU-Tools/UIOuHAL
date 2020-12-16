@@ -104,7 +104,7 @@ namespace uhal {
     uint32_t getMaxNumberOfBuffers() {return 0;}
     uint32_t getMaxSendSize() {return 0;}
     uint32_t getMaxReplySize() {return 0;}
-    uint32_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
+    uint64_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
     exception::exception* validate ( uint8_t* aSendBufferStart ,
 				     uint8_t* aSendBufferEnd ,
 				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyStartIt ,
