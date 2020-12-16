@@ -98,6 +98,35 @@ void static signal_handler(int sig){
 
 namespace uhal {  
 
+  uint32_t UIO::SearchDeviceTree(std::string const & dvtPath,std::string const & name){
+    uint32_t address = 0;
+    FILE *labelfile=0; 
+    char label[128];
+    // traverse through the device-tree
+    for (directory_iterator x(dvtPath); x!=directory_iterator(); ++x){
+      if (!is_directory(x->path()) || 
+	  !exists(x->path()/"label")) {
+	break;
+      }
+      labelfile = fopen((x->path().native()+"/label").c_str(),"r");
+      fgets(label,128,labelfile); 
+      fclose(labelfile);
+
+      if(!strcmp(label, name.c_str())){
+	//get address1 from the file name
+	int namesize=x->path().filename().native().size();
+	if(namesize<10) {
+	  log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format." );
+	  break; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
+	}
+	address = std::strtoul( x->path().filename().native().substr(namesize-8,8).c_str() , 0, 16);
+	break;
+      }
+    }
+    return address;
+  }
+
+
   UIO::UIO (
 	    const std::string& aId, const URI& aUri,
 	    const boost::posix_time::time_duration&aTimeoutPeriod
@@ -117,43 +146,25 @@ namespace uhal {
       // device number is the number read from the most significant 8 bits of the address
       // size should be read from /sys/class/uio*/maps/map0/size
       int devnum=-1, size=0;
-      char label[128]="", uioname[128]="", sizechar[128]="", addrchar[128]=""; 
+      char uioname[128]="", sizechar[128]="", addrchar[128]=""; 
       uint32_t address1=0, address2=0;
       // get the device number out from the node
       devnum = decodeAddress(lNode->getNode(*nodeId).getAddress()).device;
       // search through the file system to see if there is a uio that matches the name
       std::string uiopath = "/sys/class/uio/";
       std::string dvtpath = "/proc/device-tree/amba_pl/";
-      //Check if the amba_pl is actually amba_pl@0
-      if(!exists(path(dvtpath))){
-	//try alternate name
-	dvtpath = "/proc/device-tree/amba_pl@0/";
-      }      
 
-      FILE *labelfile=0; 
       FILE *addrfile=0;
       FILE *sizefile=0; 
-      // traverse through the device-tree
-      for (directory_iterator x(dvtpath); x!=directory_iterator(); ++x){
-	if (!is_directory(x->path())) {
-	  continue;
-	}
-	if (!exists(x->path()/"label")) {
-	  continue;
-	}
-	labelfile = fopen((x->path().native()+"/label").c_str(),"r");
-	fgets(label,128,labelfile); fclose(labelfile);
-	if(!strcmp(label, (*nodeId).c_str())){
-	  //get address1 from the file name
-	  int namesize=x->path().filename().native().size();
-	  if(namesize<10) {
-	    log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format." );
-	    continue; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
-	  }
-	  address1 = std::strtoul( x->path().filename().native().substr(namesize-8,8).c_str() , 0, 16);
-	  break;
-	}
-      }
+    
+      //Try the default amba_pl path
+      address1=SearchDeviceTree(dvtpath,(*nodeId));
+      if(address1==0){
+	//try an alternate dir
+	dvtpath = "/proc/device-tree/amba_pl@0/";
+	address1=SearchDeviceTree(dvtpath,(*nodeId));
+      }      
+      //check if we found anything
       if(address1==0) log (Debug(), "Cannot find a device that matches label ", (*nodeId).c_str(), " device not opened!" );
 
       // Traverse through the /sys/class/uio directory
