@@ -183,7 +183,7 @@ namespace uhal {
 	    (itDVTPath->path().string().find("amba")==std::string::npos) ) {
 	  continue;
 	}else{
-	  address1=SearchDeviceTree(dvtpath,(*nodeId));
+	  address1=SearchDeviceTree(itDVTPath->path().string(),(*nodeId));
 	  if(address1 != 0){
 	    //we found the correct entry
 	    break;
