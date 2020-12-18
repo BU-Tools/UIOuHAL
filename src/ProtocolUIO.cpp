@@ -103,7 +103,7 @@ namespace uhal {
     uint64_t address = 0;
     FILE *labelfile=0; 
     char label[128];
-    // traverse through the device-tree
+    // traverse through the device-tree    
     for (directory_iterator x(dvtPath); x!=directory_iterator(); ++x){
       if (!is_directory(x->path()) || 
 	  !exists(x->path()/"label")) {
@@ -169,18 +169,27 @@ namespace uhal {
       devnum = decodeAddress(lNode->getNode(*nodeId).getAddress()).device;
       // search through the file system to see if there is a uio that matches the name
       std::string uiopath = "/sys/class/uio/";
-      std::string dvtpath = "/proc/device-tree/amba_pl/";
+      std::string dvtpath = "/proc/device-tree/";
 
       FILE *addrfile=0;
       FILE *sizefile=0; 
     
-      //Try the default amba_pl path
-      address1=SearchDeviceTree(dvtpath,(*nodeId));
-      if(address1==0){
-	//try an alternate dir
-	dvtpath = "/proc/device-tree/amba_pl@0/";
-	address1=SearchDeviceTree(dvtpath,(*nodeId));
-      }      
+      //Search through all amba paths
+      for (directory_iterator itDVTPath(dvtpath); 
+	   itDVTPath!=directory_iterator();
+	   ++itDVTPath){
+	//Check that this is a path with amba in its name
+	if ((!is_directory(itDVTPath->path())) || 
+	    (itDVTPath->path().string().find("amba")==std::string::npos) ) {
+	  continue;
+	}else{
+	  address1=SearchDeviceTree(dvtpath,(*nodeId));
+	  if(address1 != 0){
+	    //we found the correct entry
+	    break;
+	  }
+	}
+      }
       //check if we found anything
       if(address1==0) log (Debug(), "Cannot find a device that matches label ", (*nodeId).c_str(), " device not opened!" );
 
