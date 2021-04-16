@@ -140,6 +140,139 @@ namespace uhal {
     return address;
   }
 
+  int UIO::simpleFindUIO(Node *lNode, std::string nodeId) {
+    int devnum = -1, size = 0;
+    std::string uioname = "";
+    char sizechar[128]="", addrchar[128]="";
+    uint64_t address1 = 0, address2 = 0;
+    // get the device number out from the node
+    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
+    // uio name set by the "linux,uio-name" device-tree property -> ex: "uio_K_C2C_PHY"
+    uioname = std::string(uio_prefix) + nodeId;
+    // still need to search through amba and amba_pl manually for this stage
+    std::string dvtpath = "/proc/device-tree/";
+    for (directory_iterator itDVTPath(dvtpath); itDVTPath!=directory_iterator(); ++itDVTPath) {
+      if ((!is_directory(itDVTPath->path())) || (itDVTPath->path().string().find("amba")==std::string::npos)) {
+        continue;
+      }
+      else {
+        // get the address. Expected form: device@XXXXXXXX
+        address1 = SearchDeviceTree(itDVTPath->path().string(),(nodeId));
+        if (address1 != 0) {
+          break;
+        }
+      }
+    }
+    // if we haven't found anything, just try the longer method 
+    if (!address1) {
+      log(Debug(), "Simple UIO finding method could not find device that matches label ", (nodeId).c_str());
+      return 1;
+    }
+    // at this point we can simply grab the proper uio from /sys/class/uio/uio_name
+    FILE *addrfile=0;
+    FILE *sizefile=0;
+    std::string uiopath = "/sys/class/uio/";
+
+    addrfile = fopen((uiopath + uioname + "/maps/map0/addr").c_str(), "r");
+    if (addrfile != NULL) {
+      fgets(addrchar, 128, addrfile);
+      fclose(addrfile);
+    }
+    else {
+      // try longer method
+      log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + uioname + "/maps/map0/addr").c_str());
+      return 1;
+    }
+    // compare addresses
+    address2 = std::strtoull(addrchar, 0, 16);
+    if (address1 == address2) {
+      sizefile = fopen((uiopath + uioname + "/maps/map0/size").c_str(), "r");
+      if (sizefile != NULL) {
+        fgets(sizechar, 128, sizefile);
+        fclose(sizefile);
+      }
+      else {
+        // try longer method
+        log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + uioname + "/maps/map0/size").c_str());
+        return 1;
+      }
+      size = std::strtoul(sizechar, 0, 16)/4;
+    }
+
+    // check size
+    if (!size) {
+      log(Debug(), "Errror: Simple UIO finding method could load device ", nodeId.c_str(), "cannot find device or size 0");
+    }
+    // finally, save the mapping
+    addrs[devnum] = address1;
+    strcpy(uionames[devnum], uioname.c_str());
+    sizes[devnum] = size;
+
+    // map the memory
+    openDevice(devnum, size, uioname.c_str());
+
+    return 0;
+  }
+
+  void UIO::complexFindUIO(Node *lNode, std::string nodeId) {
+    // copied from Siqi's original code
+    int devnum = -1, size = 0;
+    char uioname[128]="", sizechar[128]="", addrchar[128]="";
+    uint64_t address1 = 0, address2 = 0;
+    // get devnum from node
+    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
+    // iterate thru filesys to get the matching uio device 
+    std::string uiopath = "/sys/class/uio/";
+    std::string dvtpath = "/proc/device-tree/";
+    FILE *addrfile=0;
+    FILE *sizefile=0;
+    // loop over all amba, amba_pl paths
+    for (directory_iterator itDVTPath(dvtpath); itDVTPath!=directory_iterator(); ++itDVTPath) {
+      //Check that this is a path with amba in its name
+      if ((!is_directory(itDVTPath->path())) || (itDVTPath->path().string().find("amba")==std::string::npos)) {
+        continue;
+      }
+      else {
+        address1=SearchDeviceTree(itDVTPath->path().string(),(nodeId));
+        if (address1 != 0) {
+          //we found the correct entry
+          break;
+        }
+      }
+    }
+    //check if we found anything
+    if(address1==0) log (Debug(), "Cannot find a device that matches label ", (nodeId).c_str(), " device not opened!" );
+    // Traverse through the /sys/class/uio directory
+    for (directory_iterator x(uiopath); x!=directory_iterator(); ++x) {
+      if (!is_directory(x->path())) {
+        continue;
+      }
+      if (!exists(x->path()/"maps/map0/addr")) {
+        continue;
+      }
+      if (!exists(x->path()/"maps/map0/size")) {
+        continue;
+      }
+      addrfile = fopen((x->path()/"maps/map0/addr").native().c_str(),"r");
+      fgets(addrchar,128,addrfile); 
+      fclose(addrfile);
+
+      address2 = std::strtoull( addrchar, 0, 16);
+      if (address1 == address2) {
+        sizefile = fopen((x->path().native()+"/maps/map0/size").c_str(),"r");
+        fgets(sizechar,128,sizefile); fclose(sizefile);
+        //the size was in number of bytes, convert into number of uint32
+        size=std::strtoul( sizechar, 0, 16)/4;  
+        strcpy(uioname,x->path().filename().native().c_str());
+        break;
+      }
+    }
+    //save the mapping
+    addrs[devnum]=address1;
+    strcpy(uionames[devnum],uioname);
+    sizes[devnum]=size;
+    openDevice(devnum, size, uioname);
+  }
 
   UIO::UIO (
 	    const std::string& aId, const URI& aUri,
@@ -157,72 +290,10 @@ namespace uhal {
     std::vector< std::string > top_node_Ids = lNode->getNodes("^[^.]+$");
     // For each device label, search for its matching device
     for (std::vector<std::string>::iterator nodeId = top_node_Ids.begin(); nodeId != top_node_Ids.end(); ++nodeId) {
-      // device number is the number read from the most significant 8 bits of the address
-      // size should be read from /sys/class/uio*/maps/map0/size
-      int devnum=-1, size=0;
-      char uioname[128]="", sizechar[128]="", addrchar[128]=""; 
-      uint64_t address1=0, address2=0;
-      // get the device number out from the node
-      devnum = decodeAddress(lNode->getNode(*nodeId).getAddress()).device;
-      // search through the file system to see if there is a uio that matches the name
-      std::string uiopath = "/sys/class/uio/";
-      std::string dvtpath = "/proc/device-tree/";
-
-      FILE *addrfile=0;
-      FILE *sizefile=0; 
-    
-      //Search through all amba paths
-      for (directory_iterator itDVTPath(dvtpath); itDVTPath!=directory_iterator(); ++itDVTPath) {
-	      //Check that this is a path with amba in its name
-	      if ((!is_directory(itDVTPath->path())) || (itDVTPath->path().string().find("amba")==std::string::npos)) {
-	        continue;
-	      }
-        else {
-	        address1=SearchDeviceTree(itDVTPath->path().string(),(*nodeId));
-	        if (address1 != 0) {
-	          //we found the correct entry
-	          break;
-	        }
-	      }
+      // try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
+      if (!simpleFindUIO(lNode, *nodeId)) {
+        complexFindUIO(lNode, *nodeId);
       }
-
-      //check if we found anything
-      if(address1==0) log (Debug(), "Cannot find a device that matches label ", (*nodeId).c_str(), " device not opened!" );
-      // Traverse through the /sys/class/uio directory
-      for (directory_iterator x(uiopath); x!=directory_iterator(); ++x) {
-	      if (!is_directory(x->path())) {
-	        continue;
-	      }
-	      if (!exists(x->path()/"maps/map0/addr")) {
-	        continue;
-	      }
-	      if (!exists(x->path()/"maps/map0/size")) {
-	        continue;
-	      }
-
-	      addrfile = fopen((x->path()/"maps/map0/addr").native().c_str(),"r");
-	      fgets(addrchar,128,addrfile); 
-	      fclose(addrfile);
-
-	      address2 = std::strtoull( addrchar, 0, 16);
-	      if (address1 == address2) {
-	        sizefile = fopen((x->path().native()+"/maps/map0/size").c_str(),"r");
-	        fgets(sizechar,128,sizefile); fclose(sizefile);
-	        //the size was in number of bytes, convert into number of uint32
-	        size=std::strtoul( sizechar, 0, 16)/4;  
-	        strcpy(uioname,x->path().filename().native().c_str());
-	        break;
-	      }
-      }
-
-      if (size==0) {
-	      log ( Debug() , "Error: Trouble loading device ",(*nodeId).c_str(), " cannot find device or size zero." );
-      }
-      //save the mapping
-      addrs[devnum]=address1;
-      strcpy(uionames[devnum],uioname);
-      sizes[devnum]=size;
-      openDevice(devnum, size, uioname);
     }
   
     //Now that everything created sucessfully, we can deal with signal handling

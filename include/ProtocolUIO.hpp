@@ -51,6 +51,13 @@
 #include "uhal/log/exception.hpp"
 #include <signal.h> //for handling of SIG_BUS signals
 
+/*
+  The kernel patch would allow the device-tree property "linux,uio-name" to override the default label of uio devices.
+  The new UIO device file could conceivably be found under /dev/uio_${uio-name} instead of /dev/uioX
+  Change prefix as necessary once patch is implemented.
+*/
+#define uio_prefix "uio_"
+
 namespace uioaxi {
 
   //should only change the ADDR_DEV_BITS
@@ -120,6 +127,9 @@ namespace uhal {
     void primeDispatch ();
     void openDevice (int devnum, uint32_t size, const char *name);
     int checkDevice (int devnum);
+    // feel free to come up with better names!
+    int simpleFindUIO(Node *lNode, std::string nodeId);
+    void complexFindUIO(Node *lNode, std::string nodeId);
     struct sigaction saBusError;
     struct sigaction saBusError_old;
   };
