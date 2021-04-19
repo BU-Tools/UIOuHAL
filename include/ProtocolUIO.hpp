@@ -53,8 +53,7 @@
 
 /*
   The kernel patch would allow the device-tree property "linux,uio-name" to override the default label of uio devices.
-  The new UIO device file could conceivably be found under /dev/uio_${uio-name} instead of /dev/uioX
-  Change prefix as necessary once patch is implemented.
+  The patch creates a symlink from /dev/uio_NAME -> /dev/uioN
 */
 #define uio_prefix "uio_"
 

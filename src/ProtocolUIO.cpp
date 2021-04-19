@@ -144,67 +144,64 @@ namespace uhal {
     int devnum = -1, size = 0;
     std::string uioname = "";
     char sizechar[128]="", addrchar[128]="";
-    uint64_t address1 = 0, address2 = 0;
+    uint64_t address = 0;
     // get the device number out from the node
     devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
     // uio name set by the "linux,uio-name" device-tree property -> ex: "uio_K_C2C_PHY"
+    std::string prefix = "/dev/";
     uioname = std::string(uio_prefix) + nodeId;
-    // still need to search through amba and amba_pl manually for this stage
-    std::string dvtpath = "/proc/device-tree/";
-    for (directory_iterator itDVTPath(dvtpath); itDVTPath!=directory_iterator(); ++itDVTPath) {
-      if ((!is_directory(itDVTPath->path())) || (itDVTPath->path().string().find("amba")==std::string::npos)) {
+    // first check if /dev/uio_name exists and if so get the uio device file it points to: /dev/uio_NAME -> /dev/uioN
+    std::string deviceFile;
+    for (directory_iterator itUIO(prefix); itUIO != directory_iterator(); ++itUIO) {
+      if ((!is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
         continue;
       }
       else {
-        // get the address. Expected form: device@XXXXXXXX
-        address1 = SearchDeviceTree(itDVTPath->path().string(),(nodeId));
-        if (address1 != 0) {
-          break;
+        // found /dev/uio_name, now resolve symlink
+        if (is_symlink(itUIO->path())) {
+          deviceFile = read_symlink(itUIO->path()).string();
+        }
+        else {
+          log (Debug(), "Symlink ", prefix, uioname, " could not be resolved.");
+          return 1;
         }
       }
     }
-    // if we haven't found anything, just try the longer method 
-    if (!address1) {
-      log(Debug(), "Simple UIO finding method could not find device that matches label ", (nodeId).c_str());
-      return 1;
-    }
-    // at this point we can simply grab the proper uio from /sys/class/uio/uio_name
+    // at this point we can simply grab the proper uio from /sys/class/uio/uioN
     FILE *addrfile=0;
     FILE *sizefile=0;
     std::string uiopath = "/sys/class/uio/";
 
-    addrfile = fopen((uiopath + uioname + "/maps/map0/addr").c_str(), "r");
+    addrfile = fopen((uiopath + deviceFile + "/maps/map0/addr").c_str(), "r");
     if (addrfile != NULL) {
       fgets(addrchar, 128, addrfile);
       fclose(addrfile);
     }
     else {
       // try longer method
-      log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + uioname + "/maps/map0/addr").c_str());
+      log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + deviceFile + "/maps/map0/addr").c_str());
       return 1;
     }
-    // compare addresses
-    address2 = std::strtoull(addrchar, 0, 16);
-    if (address1 == address2) {
-      sizefile = fopen((uiopath + uioname + "/maps/map0/size").c_str(), "r");
-      if (sizefile != NULL) {
-        fgets(sizechar, 128, sizefile);
-        fclose(sizefile);
-      }
-      else {
-        // try longer method
-        log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + uioname + "/maps/map0/size").c_str());
-        return 1;
-      }
-      size = std::strtoul(sizechar, 0, 16)/4;
+    // get address
+    address = std::strtoull(addrchar, 0, 16);
+    sizefile = fopen((uiopath + deviceFile + "/maps/map0/size").c_str(), "r");
+    if (sizefile != NULL) {
+      fgets(sizechar, 128, sizefile);
+      fclose(sizefile);
     }
+    else {
+      // try longer method
+      log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + deviceFile + "/maps/map0/size").c_str());
+      return 1;
+    }
+    size = std::strtoul(sizechar, 0, 16)/4;
 
     // check size
     if (!size) {
       log(Debug(), "Errror: Simple UIO finding method could load device ", nodeId.c_str(), "cannot find device or size 0");
     }
     // finally, save the mapping
-    addrs[devnum] = address1;
+    addrs[devnum] = address;
     strcpy(uionames[devnum], uioname.c_str());
     sizes[devnum] = size;
 
