@@ -163,7 +163,7 @@ namespace uhal {
         }
         else {
           log (Debug(), "Symlink ", prefix, uioname, " could not be resolved.");
-          return 1;
+          return 0;
         }
       }
     }
@@ -180,7 +180,7 @@ namespace uhal {
     else {
       // try longer method
       log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + deviceFile + "/maps/map0/addr").c_str());
-      return 1;
+      return 0;
     }
     // get address
     address = std::strtoull(addrchar, 0, 16);
@@ -192,7 +192,7 @@ namespace uhal {
     else {
       // try longer method
       log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + deviceFile + "/maps/map0/size").c_str());
-      return 1;
+      return 0;
     }
     size = std::strtoul(sizechar, 0, 16)/4;
 
@@ -208,7 +208,7 @@ namespace uhal {
     // map the memory
     openDevice(devnum, size, uioname.c_str());
 
-    return 0;
+    return 1;
   }
 
   void UIO::complexFindUIO(Node *lNode, std::string nodeId) {
