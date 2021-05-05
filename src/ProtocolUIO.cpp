@@ -154,7 +154,7 @@ namespace uhal {
     std::string deviceFile;
     printf("searching for /dev/%s symlink\n", uioname.c_str());
     for (directory_iterator itUIO(prefix); itUIO != directory_iterator(); ++itUIO) {
-      if ((!is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
+      if ((is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
         continue;
       }
       else {
