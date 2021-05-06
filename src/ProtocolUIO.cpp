@@ -219,7 +219,8 @@ namespace uhal {
     }
     // finally, save the mapping
     addrs[devnum] = address;
-    strcpy(uionames[devnum], uioname.c_str());
+    uionames[devnum] = uioname;
+    hw_node_names[devnum] = nodeId;
     sizes[devnum] = size;
 
     // map the memory
@@ -234,7 +235,8 @@ namespace uhal {
     }
     // copied from Siqi's original code
     int devnum = -1, size = 0;
-    char uioname[128]="", sizechar[128]="", addrchar[128]="";
+    std::string uioname;
+    char sizechar[128]="", addrchar[128]="";
     uint64_t address1 = 0, address2 = 0;
     // get devnum from node
     devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
@@ -280,15 +282,17 @@ namespace uhal {
         fgets(sizechar,128,sizefile); fclose(sizefile);
         //the size was in number of bytes, convert into number of uint32
         size=std::strtoul( sizechar, 0, 16)/4;  
-        strcpy(uioname,x->path().filename().native().c_str());
+        //strcpy(uioname,x->path().filename().native().c_str());
+        uioname = x->path().filename().native();
         break;
       }
     }
     //save the mapping
     addrs[devnum]=address1;
-    strcpy(uionames[devnum],uioname);
+    uionames[devnum] = uioname;
+    hw_node_names[devnum] = nodeId;
     sizes[devnum]=size;
-    openDevice(devnum, size, uioname);
+    openDevice(devnum, size, uioname.c_str());
   }
 
   UIO::UIO (
@@ -350,7 +354,6 @@ namespace uhal {
 			                      PROT_READ|PROT_WRITE, MAP_SHARED,
 			                      fd[i], 0x0);
     if (hw[i]==MAP_FAILED) {
-      failedMap.insert({i, name});
       log ( Debug() , "Failed to map ", devpath, ": ",  strerror(errno));
       hw[i]=NULL;
       goto end;
@@ -365,9 +368,9 @@ namespace uhal {
     if (!hw[i]) {
       // Todo: replace with an exception
       // include name of device in log output:
-      const char* uioDevice = failedMap[i];
+      std::string deviceName = hw_node_names[i];
       uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), " - Device: ", uioDevice);
+      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), " - Device: ", deviceName);
       throw *lExc;
       return 1;
     }
