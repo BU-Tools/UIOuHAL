@@ -350,6 +350,7 @@ namespace uhal {
 			                      PROT_READ|PROT_WRITE, MAP_SHARED,
 			                      fd[i], 0x0);
     if (hw[i]==MAP_FAILED) {
+      failedMap.insert({i, name});
       log ( Debug() , "Failed to map ", devpath, ": ",  strerror(errno));
       hw[i]=NULL;
       goto end;
@@ -364,9 +365,9 @@ namespace uhal {
     if (!hw[i]) {
       // Todo: replace with an exception
       // include name of device in log output:
-      char* uioDevice = uionames[i];
+      const char* uioDevice = failedMap[i];
       uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), "Device: ", uioDevice);
+      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), " - Device: ", uioDevice);
       throw *lExc;
       return 1;
     }

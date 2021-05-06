@@ -50,6 +50,7 @@
 #include <uhal/ValMem.hpp>
 #include "uhal/log/exception.hpp"
 #include <signal.h> //for handling of SIG_BUS signals
+#include <map> // for mapping unknown UIO devices to their number
 
 /*
   The kernel patch would allow the device-tree property "linux,uio-name" to override the default label of uio devices.
@@ -129,6 +130,7 @@ namespace uhal {
     // feel free to come up with better names!
     int simpleFindUIO(Node *lNode, std::string nodeId);
     void complexFindUIO(Node *lNode, std::string nodeId);
+    std::map<int, const char*> failedMap;
     struct sigaction saBusError;
     struct sigaction saBusError_old;
   };
