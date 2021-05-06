@@ -141,6 +141,8 @@ namespace uhal {
   }
 
   int UIO::simpleFindUIO(Node *lNode, std::string nodeId) {
+    // check if debug mode is enabled
+    char* UIOUHAL_DEBUG = getenv("UIOUHAL_DEBUG");
     int devnum = -1, size = 0;
     std::string uioname = "";
     char sizechar[128]="", addrchar[128]="";
@@ -152,7 +154,9 @@ namespace uhal {
     uioname = std::string(uio_prefix) + nodeId;
     // first check if /dev/uio_name exists and if so get the uio device file it points to: /dev/uio_NAME -> /dev/uioN
     std::string deviceFile;
-    printf("searching for /dev/%s symlink\n", uioname.c_str());
+    if (NULL != UIOUHAL_DEBUG) {
+      printf("searching for /dev/%s symlink\n", uioname.c_str());
+    }
     for (directory_iterator itUIO(prefix); itUIO != directory_iterator(); ++itUIO) {
       if ((is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
         continue;
@@ -163,7 +167,9 @@ namespace uhal {
           deviceFile = read_symlink(itUIO->path()).string();
         }
         else {
-          printf("unable to resolve symlink /dev/%s -> /dev/uioN, using legacy method", uioname.c_str());
+          if (NULL != UIOUHAL_DEBUG) {
+            printf("unable to resolve symlink /dev/%s -> /dev/uioN, using legacy method", uioname.c_str());
+          }
           log (Debug(), "Symlink ", prefix, uioname, " could not be resolved.");
           return 0;
         }
@@ -181,7 +187,9 @@ namespace uhal {
     }
     else {
       // try longer method
-      printf("Simple UIO finding method could not find address file at %s, using legacy method\n", (uiopath+deviceFile+"/maps/map0/addr").c_str());
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Simple UIO finding method could not find address file at %s, using legacy method\n", (uiopath+deviceFile+"/maps/map0/addr").c_str());
+      }
       log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + deviceFile + "/maps/map0/addr").c_str());
       return 0;
     }
@@ -194,7 +202,9 @@ namespace uhal {
     }
     else {
       // try longer method
-      printf("Simple UIO finding method could not find size file at %s, using legacy method\n", (uiopath + deviceFile + "/maps/map0/size").c_str());
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Simple UIO finding method could not find size file at %s, using legacy method\n", (uiopath + deviceFile + "/maps/map0/size").c_str());
+      }
       log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + deviceFile + "/maps/map0/size").c_str());
       return 0;
     }
@@ -202,7 +212,9 @@ namespace uhal {
 
     // check size
     if (!size) {
-      printf("Errror: Simple UIO finding method could load device %s, cannot find device or size 0. Using legacy method instead.\n", nodeId.c_str());
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Errror: Simple UIO finding method could load device %s, cannot find device or size 0. Using legacy method instead.\n", nodeId.c_str());
+      }
       log(Debug(), "Errror: Simple UIO finding method could load device ", nodeId.c_str(), "cannot find device or size 0");
     }
     // finally, save the mapping
@@ -217,7 +229,9 @@ namespace uhal {
   }
 
   void UIO::complexFindUIO(Node *lNode, std::string nodeId) {
-    printf("Using legacy method for UIO device mapping: %s\n", nodeId.c_str());
+    if (NULL != getenv("UIOUHAL_DEBUG")) {
+      printf("Using legacy method for UIO device mapping: %s\n", nodeId.c_str());
+    }
     // copied from Siqi's original code
     int devnum = -1, size = 0;
     char uioname[128]="", sizechar[128]="", addrchar[128]="";
@@ -349,8 +363,10 @@ namespace uhal {
   int UIO::checkDevice (int i) {
     if (!hw[i]) {
       // Todo: replace with an exception
+      // include name of device in log output:
+      char* uioDevice = uionames[i];
       uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ));
+      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), "Device: ", uioDevice);
       throw *lExc;
       return 1;
     }
