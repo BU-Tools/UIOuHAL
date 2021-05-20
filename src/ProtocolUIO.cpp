@@ -360,7 +360,7 @@ namespace uhal {
     checkBufferSpace ( sendcount, replycount, sendavail, replyavail);
   }
 
-  void UIO::implementDispatch (boost::shared_ptr<Buffers> /*aBuffers*/) {
+  void UIO::implementDispatch (std::shared_ptr<Buffers> /*aBuffers*/) {
     log ( Debug(), "UIO: Dispatch");
     for (unsigned int i=0; i<valwords.size(); i++)
       valwords[i].valid(true);

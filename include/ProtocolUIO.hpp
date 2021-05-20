@@ -94,7 +94,7 @@ namespace uhal {
     ValHeader implementWrite (const uint32_t& aAddr, const uint32_t& aValue);
     ValWord<uint32_t> implementRead (const uint32_t& aAddr,
 				     const uint32_t& aMask = defs::NOMASK);
-    void implementDispatch (boost::shared_ptr<Buffers> aBuffers) /*override*/ ;
+    void implementDispatch (std::shared_ptr<Buffers> aBuffers) override;
 
     ValHeader implementBOT();
     ValHeader implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode=defs::INCREMENTAL);
