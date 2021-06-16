@@ -51,6 +51,12 @@
 #include "uhal/log/exception.hpp"
 #include <signal.h> //for handling of SIG_BUS signals
 
+/*
+  The kernel patch would allow the device-tree property "linux,uio-name" to override the default label of uio devices.
+  The patch creates a symlink from /dev/uio_NAME -> /dev/uioN
+*/
+#define uio_prefix "uio_"
+
 namespace uioaxi {
 
   //should only change the ADDR_DEV_BITS
@@ -94,7 +100,11 @@ namespace uhal {
     ValHeader implementWrite (const uint32_t& aAddr, const uint32_t& aValue);
     ValWord<uint32_t> implementRead (const uint32_t& aAddr,
 				     const uint32_t& aMask = defs::NOMASK);
+#if UHAL_VER_MAJOR == 2 && UHAL_VER_MINOR < 8
     void implementDispatch (boost::shared_ptr<Buffers> aBuffers) /*override*/ ;
+#else
+    void implementDispatch (std::shared_ptr<Buffers> aBuffers) override;
+#endif
 
     ValHeader implementBOT();
     ValHeader implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode=defs::INCREMENTAL);
@@ -104,7 +114,7 @@ namespace uhal {
     uint32_t getMaxNumberOfBuffers() {return 0;}
     uint32_t getMaxSendSize() {return 0;}
     uint32_t getMaxReplySize() {return 0;}
-
+    uint64_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
     exception::exception* validate ( uint8_t* aSendBufferStart ,
 				     uint8_t* aSendBufferEnd ,
 				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyStartIt ,
@@ -114,12 +124,16 @@ namespace uhal {
     uint32_t volatile * hw[uioaxi::DEVICES_MAX];
     uint32_t addrs[uioaxi::DEVICES_MAX];
     int      sizes[uioaxi::DEVICES_MAX];
-    char uionames[uioaxi::DEVICES_MAX][128];
+    std::string uionames[uioaxi::DEVICES_MAX];
     uioaxi::DevAddr decodeAddress (uint32_t uaddr);
     std::vector< ValWord<uint32_t> > valwords;
     void primeDispatch ();
     void openDevice (int devnum, uint32_t size, const char *name);
     int checkDevice (int devnum);
+    // feel free to come up with better names!
+    int simpleFindUIO(Node *lNode, std::string nodeId);
+    void complexFindUIO(Node *lNode, std::string nodeId);
+    std::string hw_node_names[uioaxi::DEVICES_MAX];
     struct sigaction saBusError;
     struct sigaction saBusError_old;
   };

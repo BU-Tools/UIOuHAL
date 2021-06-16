@@ -64,6 +64,7 @@
 
 #include <setjmp.h> //for BUS_ERROR signal handling
 
+#include <inttypes.h> //for PRI macros
 
 using namespace uioaxi;
 using namespace boost::filesystem;
@@ -98,6 +99,202 @@ void static signal_handler(int sig){
 
 namespace uhal {  
 
+  uint64_t UIO::SearchDeviceTree(std::string const & dvtPath,std::string const & name) {
+    uint64_t address = 0;
+    FILE *labelfile=0; 
+    char label[128];
+    // traverse through the device-tree    
+    for (directory_iterator x(dvtPath); x!=directory_iterator(); ++x) {
+      if (!is_directory(x->path()) || !exists(x->path()/"label")) {
+	      continue;
+      }
+      labelfile = fopen((x->path().native()+"/label").c_str(),"r");
+      fgets(label,128,labelfile); 
+      fclose(labelfile);
+
+      if(!strcmp(label, name.c_str())) {
+	      //Get endpoint AXI address from path
+	      // looks something like LABEL@DEADBEEFXX
+	      std::string stringAddr=x->path().filename().native();        
+
+	      //Check if we find the @
+	      size_t addrStart = stringAddr.find("@");
+	      if (addrStart == std::string::npos) {
+	        log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format. Missing \"@\" " );
+	        break; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
+        }
+
+        //Convert the found string into binary
+        if (addrStart+1 > stringAddr.size()) {
+          log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format. Missing size " );
+          break; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
+        }
+
+	      stringAddr = stringAddr.substr(addrStart+1);
+
+        //Get the names's address from the path (in hex)
+        address = std::strtoull(stringAddr.c_str() , 0, 16);
+        break;
+      }
+    }
+    return address;
+  }
+
+  int UIO::simpleFindUIO(Node *lNode, std::string nodeId) {
+    // check if debug mode is enabled
+    char* UIOUHAL_DEBUG = getenv("UIOUHAL_DEBUG");
+    int devnum = -1, size = 0;
+    std::string uioname = "";
+    char sizechar[128]="", addrchar[128]="";
+    uint64_t address = 0;
+    // get the device number out from the node
+    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
+    // uio name set by the "linux,uio-name" device-tree property -> ex: "uio_K_C2C_PHY"
+    std::string prefix = "/dev/";
+    uioname = std::string(uio_prefix) + nodeId;
+    // first check if /dev/uio_name exists and if so get the uio device file it points to: /dev/uio_NAME -> /dev/uioN
+    std::string deviceFile;
+    if (NULL != UIOUHAL_DEBUG) {
+      printf("searching for /dev/%s symlink\n", uioname.c_str());
+    }
+    for (directory_iterator itUIO(prefix); itUIO != directory_iterator(); ++itUIO) {
+      if ((is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
+        continue;
+      }
+      else {
+        // found /dev/uio_name, now resolve symlink
+        if (is_symlink(itUIO->path())) {
+          deviceFile = read_symlink(itUIO->path()).string();
+        }
+        else {
+          if (NULL != UIOUHAL_DEBUG) {
+            printf("unable to resolve symlink /dev/%s -> /dev/uioN, using legacy method", uioname.c_str());
+          }
+          log (Debug(), "Symlink ", prefix, uioname, " could not be resolved.");
+          return 0;
+        }
+      }
+    }
+    // at this point we can simply grab the proper uio from /sys/class/uio/uioN
+    FILE *addrfile=0;
+    FILE *sizefile=0;
+    std::string uiopath = "/sys/class/uio/";
+
+    addrfile = fopen((uiopath + deviceFile + "/maps/map0/addr").c_str(), "r");
+    if (addrfile != NULL) {
+      fgets(addrchar, 128, addrfile);
+      fclose(addrfile);
+    }
+    else {
+      // try longer method
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Simple UIO finding method could not find address file at %s, using legacy method\n", (uiopath+deviceFile+"/maps/map0/addr").c_str());
+      }
+      log(Debug(), "Simple UIO finding method could not find address file at ", (uiopath + deviceFile + "/maps/map0/addr").c_str());
+      return 0;
+    }
+    // get address
+    address = std::strtoull(addrchar, 0, 16);
+    sizefile = fopen((uiopath + deviceFile + "/maps/map0/size").c_str(), "r");
+    if (sizefile != NULL) {
+      fgets(sizechar, 128, sizefile);
+      fclose(sizefile);
+    }
+    else {
+      // try longer method
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Simple UIO finding method could not find size file at %s, using legacy method\n", (uiopath + deviceFile + "/maps/map0/size").c_str());
+      }
+      log(Debug(), "Simple UIO finding method could not find size file at ", (uiopath + deviceFile + "/maps/map0/size").c_str());
+      return 0;
+    }
+    size = std::strtoul(sizechar, 0, 16)/4;
+
+    // check size
+    if (!size) {
+      if (NULL != UIOUHAL_DEBUG) {
+        printf("Errror: Simple UIO finding method could load device %s, cannot find device or size 0. Using legacy method instead.\n", nodeId.c_str());
+      }
+      log(Debug(), "Errror: Simple UIO finding method could load device ", nodeId.c_str(), "cannot find device or size 0");
+    }
+    // finally, save the mapping
+    addrs[devnum] = address;
+    uionames[devnum] = uioname;
+    hw_node_names[devnum] = nodeId;
+    sizes[devnum] = size;
+
+    // map the memory
+    openDevice(devnum, size, uioname.c_str());
+
+    return 1;
+  }
+
+  void UIO::complexFindUIO(Node *lNode, std::string nodeId) {
+    if (NULL != getenv("UIOUHAL_DEBUG")) {
+      printf("Using legacy method for UIO device mapping: %s\n", nodeId.c_str());
+    }
+    // copied from Siqi's original code
+    int devnum = -1, size = 0;
+    std::string uioname;
+    char sizechar[128]="", addrchar[128]="";
+    uint64_t address1 = 0, address2 = 0;
+    // get devnum from node
+    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
+    // iterate thru filesys to get the matching uio device 
+    std::string uiopath = "/sys/class/uio/";
+    std::string dvtpath = "/proc/device-tree/";
+    FILE *addrfile=0;
+    FILE *sizefile=0;
+    // loop over all amba, amba_pl paths
+    for (directory_iterator itDVTPath(dvtpath); itDVTPath!=directory_iterator(); ++itDVTPath) {
+      //Check that this is a path with amba in its name
+      if ((!is_directory(itDVTPath->path())) || (itDVTPath->path().string().find("amba")==std::string::npos)) {
+        continue;
+      }
+      else {
+        address1=SearchDeviceTree(itDVTPath->path().string(),(nodeId));
+        if (address1 != 0) {
+          //we found the correct entry
+          break;
+        }
+      }
+    }
+    //check if we found anything
+    if(address1==0) log (Debug(), "Cannot find a device that matches label ", (nodeId).c_str(), " device not opened!" );
+    // Traverse through the /sys/class/uio directory
+    for (directory_iterator x(uiopath); x!=directory_iterator(); ++x) {
+      if (!is_directory(x->path())) {
+        continue;
+      }
+      if (!exists(x->path()/"maps/map0/addr")) {
+        continue;
+      }
+      if (!exists(x->path()/"maps/map0/size")) {
+        continue;
+      }
+      addrfile = fopen((x->path()/"maps/map0/addr").native().c_str(),"r");
+      fgets(addrchar,128,addrfile); 
+      fclose(addrfile);
+
+      address2 = std::strtoull( addrchar, 0, 16);
+      if (address1 == address2) {
+        sizefile = fopen((x->path().native()+"/maps/map0/size").c_str(),"r");
+        fgets(sizechar,128,sizefile); fclose(sizefile);
+        //the size was in number of bytes, convert into number of uint32
+        size=std::strtoul( sizechar, 0, 16)/4;  
+        //strcpy(uioname,x->path().filename().native().c_str());
+        uioname = x->path().filename().native();
+        break;
+      }
+    }
+    //save the mapping
+    addrs[devnum]=address1;
+    uionames[devnum] = uioname;
+    hw_node_names[devnum] = nodeId;
+    sizes[devnum]=size;
+    openDevice(devnum, size, uioname.c_str());
+  }
+
   UIO::UIO (
 	    const std::string& aId, const URI& aUri,
 	    const boost::posix_time::time_duration&aTimeoutPeriod
@@ -114,75 +311,11 @@ namespace uhal {
     std::vector< std::string > top_node_Ids = lNode->getNodes("^[^.]+$");
     // For each device label, search for its matching device
     for (std::vector<std::string>::iterator nodeId = top_node_Ids.begin(); nodeId != top_node_Ids.end(); ++nodeId) {
-      // device number is the number read from the most significant 8 bits of the address
-      // size should be read from /sys/class/uio*/maps/map0/size
-      int devnum=-1, size=0;
-      char label[128]="", uioname[128]="", sizechar[128]="", addrchar[128]=""; 
-      uint32_t address1=0, address2=0;
-      // get the device number out from the node
-      devnum = decodeAddress(lNode->getNode(*nodeId).getAddress()).device;
-      // search through the file system to see if there is a uio that matches the name
-      std::string uiopath = "/sys/class/uio/";
-      std::string dvtpath = "/proc/device-tree/amba_pl/";
-      FILE *labelfile=0; 
-      FILE *addrfile=0;
-      FILE *sizefile=0; 
-      // traverse through the device-tree
-      for (directory_iterator x(dvtpath); x!=directory_iterator(); ++x){
-	if (!is_directory(x->path())) {
-	  continue;
-	}
-	if (!exists(x->path()/"label")) {
-	  continue;
-	}
-	labelfile = fopen((x->path().native()+"/label").c_str(),"r");
-	fgets(label,128,labelfile); fclose(labelfile);
-	if(!strcmp(label, (*nodeId).c_str())){
-	  //get address1 from the file name
-	  int namesize=x->path().filename().native().size();
-	  if(namesize<10) {
-	    log ( Debug() , "directory name ", x->path().filename().native().c_str() ," has incorrect format." );
-	    continue; //expect the name to be in x@xxxxxxxx format for example myReg@0x41200000
-	  }
-	  address1 = std::strtoul( x->path().filename().native().substr(namesize-8,8).c_str() , 0, 16);
-	  break;
-	}
+      // try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
+      if (!simpleFindUIO(lNode, *nodeId)) {
+        complexFindUIO(lNode, *nodeId);
       }
-      if(address1==0) log (Debug(), "Cannot find a device that matches label ", (*nodeId).c_str(), " device not opened!" );
-
-      // Traverse through the /sys/class/uio directory
-      for (directory_iterator x(uiopath); x!=directory_iterator(); ++x){
-	if (!is_directory(x->path())) {
-	  continue;
-	}
-	if (!exists(x->path()/"maps/map0/addr")) {
-	  continue;
-	}
-	if (!exists(x->path()/"maps/map0/size")) {
-	  continue;
-	}
-	addrfile = fopen((x->path()/"maps/map0/addr").native().c_str(),"r");
-	fgets(addrchar,128,addrfile); fclose(addrfile);
-	address2 = std::strtoul( addrchar, 0, 16);
-	if (address1 == address2){
-	  sizefile = fopen((x->path().native()+"/maps/map0/size").c_str(),"r");
-	  fgets(sizechar,128,sizefile); fclose(sizefile);
-	  //the size was in number of bytes, convert into number of uint32
-	  size=std::strtoul( sizechar, 0, 16)/4;  
-	  strcpy(uioname,x->path().filename().native().c_str());
-	  break;
-	}
-      }
-      if (size==0) {
-	log ( Debug() , "Error: Trouble loading device ",(*nodeId).c_str(), " cannot find device or size zero." );
-      }
-      //save the mapping
-      addrs[devnum]=address1;
-      strcpy(uionames[devnum],uioname);
-      sizes[devnum]=size;
-      openDevice(devnum, size, uioname);
     }
-
   
     //Now that everything created sucessfully, we can deal with signal handling
     memset(&saBusError,0,sizeof(saBusError)); //Clear struct
@@ -193,22 +326,20 @@ namespace uhal {
 
   UIO::~UIO () {
     //unmap all mmaps
-    for (int i=0; i<uioaxi::DEVICES_MAX ; i++)
-      {
-	if(NULL != hw[i]){
-	  munmap((void *)(hw[i]),sizes[i]);
-	  hw[i] = NULL;
-	  sizes[i] = 0;
-	  close(fd[i]);
-	  fd[i] = -1;
-	}
-      }    
+    for (int i=0; i<uioaxi::DEVICES_MAX ; i++) {
+	    if(NULL != hw[i]) {
+	      munmap((void *)(hw[i]),sizes[i]);
+	      hw[i] = NULL;
+	      sizes[i] = 0;
+	      close(fd[i]);
+	      fd[i] = -1;
+      }
+    }
     log ( Debug() , "UIO: destructor" );
     sigaction(SIGBUS,&saBusError_old,NULL); //restore the signal handler from before creation for SIGBUS
   }
 
-  void
-  UIO::openDevice(int i, uint32_t size, const char *name) {
+  void UIO::openDevice(int i, uint32_t size, const char *name) {
     if (i<0||i>=DEVICES_MAX) return;
     const char *prefix = "/dev";
     size_t devpath_cap = strlen(prefix)+1+strlen(name)+1;
@@ -219,9 +350,9 @@ namespace uhal {
       log( Debug() , "Failed to open ", devpath, ": ", strerror(errno));
       goto end;
     }
-    hw[i] = (uint32_t*)mmap( NULL, size*sizeof(uint32_t),
-			     PROT_READ|PROT_WRITE, MAP_SHARED,
-			     fd[i], 0x0);
+    hw[i] = (uint32_t*)mmap(NULL, size*sizeof(uint32_t),
+			                      PROT_READ|PROT_WRITE, MAP_SHARED,
+			                      fd[i], 0x0);
     if (hw[i]==MAP_FAILED) {
       log ( Debug() , "Failed to map ", devpath, ": ",  strerror(errno));
       hw[i]=NULL;
@@ -233,28 +364,27 @@ namespace uhal {
     free(devpath);
   }
 
-  int
-  UIO::checkDevice (int i) {
+  int UIO::checkDevice (int i) {
     if (!hw[i]) {
       // Todo: replace with an exception
+      // include name of device in log output:
+      std::string deviceName = hw_node_names[i];
       uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ));
+      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), " - Device: ", deviceName);
       throw *lExc;
       return 1;
     }
     return 0;
   }
 
-  DevAddr
-  UIO::decodeAddress (uint32_t uaddr) {
+  DevAddr UIO::decodeAddress (uint32_t uaddr) {
     DevAddr da;
     da.device = (uaddr&ADDR_DEV_MASK)>>ADDR_DEV_OFFSET;
     da.word = (uaddr&ADDR_WORD_MASK);
     return da;
   }
 
-  ValHeader
-  UIO::implementWrite (const uint32_t& aAddr, const uint32_t& aValue) {
+  ValHeader UIO::implementWrite (const uint32_t& aAddr, const uint32_t& aValue) {
     DevAddr da = decodeAddress(aAddr);
     if (checkDevice(da.device)){ return ValWord<uint32_t>();}
     uint32_t writeval = aValue;
@@ -263,8 +393,7 @@ namespace uhal {
     return ValHeader();
   }
 
-  ValHeader 
-  UIO::implementBOT(){
+  ValHeader UIO::implementBOT() {
     log ( Debug() , "Byte Order Transaction");
     uhal::exception::UnimplementedFunction* lExc = new uhal::exception::UnimplementedFunction();
     log (*lExc, "Function implementBOT() is not yet implemented.");
@@ -272,26 +401,26 @@ namespace uhal {
     return ValHeader();
   }
 
-  ValHeader 
-  UIO::implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode) {
+  ValHeader UIO::implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode) {
     DevAddr da = decodeAddress(aAddr);
     if (checkDevice(da.device)) return ValWord<uint32_t>();
-    uint32_t lAddr ( da.word );
+    uint32_t lAddr = da.word ;
     std::vector<uint32_t>::const_iterator ptr;
-    for (ptr = aValues.begin(); ptr < aValues.end(); ptr++){
+    for (ptr = aValues.begin(); ptr < aValues.end(); ptr++) {
       uint32_t writeval = *ptr;
-
       BUS_ERROR_PROTECTION(hw[da.device][lAddr] = writeval)
-      if ( aMode == defs::INCREMENTAL )
-	lAddr ++;
+      if ( aMode == defs::INCREMENTAL ) {
+        lAddr ++;
+      }
     }
     return ValHeader();
   }
 
-  ValWord<uint32_t>
-  UIO::implementRead (const uint32_t& aAddr, const uint32_t& aMask) {
+  ValWord<uint32_t> UIO::implementRead (const uint32_t& aAddr, const uint32_t& aMask) {
     DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) {return ValWord<uint32_t>();}
+    if (checkDevice(da.device)) {
+      return ValWord<uint32_t>();
+    }
     uint32_t readval;
     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
     ValWord<uint32_t> vw(readval, aMask);
@@ -300,25 +429,24 @@ namespace uhal {
     return vw;
   }
     
-  ValVector< uint32_t > 
-  UIO::implementReadBlock ( const uint32_t& aAddr, const uint32_t& aSize, const defs::BlockReadWriteMode& aMode ) {
+  ValVector< uint32_t > UIO::implementReadBlock (const uint32_t& aAddr, const uint32_t& aSize, const defs::BlockReadWriteMode& aMode) {
     DevAddr da = decodeAddress(aAddr);
-    uint32_t lAddr ( da.word );
+    uint32_t lAddr = da.word ;
     if (checkDevice(da.device)) return ValVector<uint32_t>();
     std::vector<uint32_t> read_vector(aSize);
     std::vector<uint32_t>::iterator ptr;
-    for (ptr = read_vector.begin(); ptr < read_vector.end(); ptr++){
+    for (ptr = read_vector.begin(); ptr < read_vector.end(); ptr++) {
       uint32_t readval;
       BUS_ERROR_PROTECTION(readval = hw[da.device][lAddr])
       *ptr = readval;
-      if ( aMode == defs::INCREMENTAL )
-	lAddr ++;
+      if ( aMode == defs::INCREMENTAL ) {
+	      lAddr ++;
+      }
     }
     return ValVector< uint32_t> (read_vector);
   }
 
-  void
-  UIO::primeDispatch () {
+  void UIO::primeDispatch () {
     // uhal will never call implementDispatch unless told that buffers are in
     // use (even though the buffers are not actually used and are length zero).
     // implementDispatch will only be called once after each checkBufferSpace.
@@ -326,15 +454,18 @@ namespace uhal {
     checkBufferSpace ( sendcount, replycount, sendavail, replyavail);
   }
 
-  void
-  UIO::implementDispatch (boost::shared_ptr<Buffers> aBuffers) {
+#if UHAL_VER_MAJOR == 2 && UHAL_VER_MINOR < 8
+  void UIO::implementDispatch (boost::shared_ptr<Buffers> /*aBuffers*/) {
+#else
+  void UIO::implementDispatch (std::shared_ptr<Buffers> /*aBuffers*/) {
+#endif
     log ( Debug(), "UIO: Dispatch");
     for (unsigned int i=0; i<valwords.size(); i++)
       valwords[i].valid(true);
     valwords.clear();
   }
 
-  ValWord<uint32_t> UIO::implementRMWbits ( const uint32_t& aAddr , const uint32_t& aANDterm , const uint32_t& aORterm ){
+  ValWord<uint32_t> UIO::implementRMWbits (const uint32_t& aAddr , const uint32_t& aANDterm , const uint32_t& aORterm) {
     DevAddr da = decodeAddress(aAddr);
     if (checkDevice(da.device)) return ValWord<uint32_t>();
 
@@ -351,10 +482,11 @@ namespace uhal {
   }
 
 
-  ValWord< uint32_t > UIO::implementRMWsum ( const uint32_t& aAddr , const int32_t& aAddend ) {
+  ValWord<uint32_t> UIO::implementRMWsum (const uint32_t& aAddr, const int32_t& aAddend) {
     DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) return ValWord<uint32_t>();
-
+    if (checkDevice(da.device)) {
+      return ValWord<uint32_t>();
+    }
     //read the current value
     uint32_t readval;
     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
@@ -365,12 +497,12 @@ namespace uhal {
     return ValWord<uint32_t>(readval);
   }
 
-  exception::exception* UIO::validate ( uint8_t* /*aSendBufferStart*/ ,
+  exception::exception* UIO::validate (uint8_t* /*aSendBufferStart*/,
 					uint8_t* /*aSendBufferEnd */,
 					std::deque< std::pair< uint8_t* , uint32_t > >::iterator /*aReplyStartIt*/ ,
 					std::deque< std::pair< uint8_t* , uint32_t > >::iterator /*aReplyEndIt*/ ) {
     return NULL;
   }
   
-}
+}   // namespace uhal
 
