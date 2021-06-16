@@ -454,7 +454,11 @@ namespace uhal {
     checkBufferSpace ( sendcount, replycount, sendavail, replyavail);
   }
 
+#if UHAL_VER_MAJOR == 2 && UHAL_VER_MINOR < 8
   void UIO::implementDispatch (boost::shared_ptr<Buffers> /*aBuffers*/) {
+#else
+  void UIO::implementDispatch (std::shared_ptr<Buffers> /*aBuffers*/) {
+#endif
     log ( Debug(), "UIO: Dispatch");
     for (unsigned int i=0; i<valwords.size(); i++)
       valwords[i].valid(true);
