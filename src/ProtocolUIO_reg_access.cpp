@@ -83,16 +83,22 @@ using namespace boost::filesystem;
     uhal::exception::UIOBusError * e = new uhal::exception::UIOBusError();\
     throw *e;\
   }else{ \
+    envValid=true; \
     ACCESS;					\
+    envValid=false; \
   }
 
 
 
 //Signal handling for sigbus
 sigjmp_buf static env;
+bool static envValid;
 void static signal_handler(int sig){
   if(SIGBUS == sig){
-    siglongjmp(env,sig);    
+    if(envValid){
+      siglongjmp(env,sig);    
+      envValid=false;
+    }
   }
 }
 
