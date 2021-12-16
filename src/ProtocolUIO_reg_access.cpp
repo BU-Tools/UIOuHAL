@@ -78,9 +78,12 @@ using namespace boost::filesystem;
 //   new:
 //     uint32_t readval;
 //     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
-#define BUS_ERROR_PROTECTION(ACCESS) \
+#define BUS_ERROR_PROTECTION(ACCESS,ADDRESS)					\
   if(SIGBUS == sigsetjmp(env,1)){						\
     uhal::exception::UIOBusError * e = new uhal::exception::UIOBusError();\
+    char error_message[] = "Reg: 0x00000000"; \
+    snprintf(error_message,strlen(error_message),"Reg: 0x%08X",ADDRESS); \
+    e->append(error_message); \
     throw *e;\
   }else{ \
     ACCESS;					\
@@ -133,7 +136,7 @@ namespace uhal {
     std::vector<uint32_t>::const_iterator ptr;
     for (ptr = aValues.begin(); ptr < aValues.end(); ptr++) {
       uint32_t writeval = *ptr;
-      BUS_ERROR_PROTECTION(hw[da.device][lAddr] = writeval)
+      BUS_ERROR_PROTECTION(hw[da.device][lAddr] = writeval,aAddr)
       if ( aMode == defs::INCREMENTAL ) {
         lAddr ++;
       }
@@ -147,7 +150,7 @@ namespace uhal {
       return ValWord<uint32_t>();
     }
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word],aAddr)
     ValWord<uint32_t> vw(readval, aMask);
     valwords.push_back(vw);
     primeDispatch();
@@ -162,7 +165,7 @@ namespace uhal {
     std::vector<uint32_t>::iterator ptr;
     for (ptr = read_vector.begin(); ptr < read_vector.end(); ptr++) {
       uint32_t readval;
-      BUS_ERROR_PROTECTION(readval = hw[da.device][lAddr])
+      BUS_ERROR_PROTECTION(readval = hw[da.device][lAddr],aAddr)
       *ptr = readval;
       if ( aMode == defs::INCREMENTAL ) {
 	      lAddr ++;
@@ -196,13 +199,13 @@ namespace uhal {
 
     //read the current value
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word],aAddr)
 
     //apply and and or operations
     readval &= aANDterm;
     readval |= aORterm;
-    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval)
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval,aAddr)
+    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word],aAddr)
     return ValWord<uint32_t>(readval);
   }
 
@@ -214,11 +217,11 @@ namespace uhal {
     }
     //read the current value
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word],aAddr)
     //apply and and or operations
     readval += aAddend;
-    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval)
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval,aAddr)
+    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word],aAddr)
     return ValWord<uint32_t>(readval);
   }
 
