@@ -51,6 +51,12 @@
 #include "uhal/log/exception.hpp"
 #include <signal.h> //for handling of SIG_BUS signals
 
+/*
+  The kernel patch would allow the device-tree property "linux,uio-name" to override the default label of uio devices.
+  The patch creates a symlink from /dev/uio_NAME -> /dev/uioN
+*/
+#define uio_prefix "uio_"
+
 namespace uioaxi {
 
   //should only change the ADDR_DEV_BITS
@@ -61,8 +67,8 @@ namespace uioaxi {
   const int DEVICES_MAX = 0x1 << ADDR_DEV_BITS;
   const int DEVNUMPRLEN = 1+(ADDR_DEV_BITS/4-1);
 
-  typedef uint8_t devnum_t;
-  typedef uint16_t wordnum_t;
+  typedef uint32_t devnum_t;
+  typedef uint32_t wordnum_t;
 
   struct DevAddr {
     devnum_t device;
@@ -83,18 +89,27 @@ namespace uhal {
 
   class UIO : public ClientInterface {
   public:
+
+    //In ProtocolUIO.cpp
     UIO (
 	 const std::string& aId, const URI& aUri,
 	 const boost::posix_time::time_duration&aTimeoutPeriod =
 	 boost::posix_time::milliseconds(10)
 	 );
     virtual ~UIO ();
-    //  protected:
+
+
   private:
+
+    // In ProtocolUIO_reg_access
     ValHeader implementWrite (const uint32_t& aAddr, const uint32_t& aValue);
     ValWord<uint32_t> implementRead (const uint32_t& aAddr,
 				     const uint32_t& aMask = defs::NOMASK);
+#if UHAL_VER_MAJOR >= 2 && UHAL_VER_MINOR >= 8
+    void implementDispatch (std::shared_ptr<Buffers> aBuffers) override;
+#else
     void implementDispatch (boost::shared_ptr<Buffers> aBuffers) /*override*/ ;
+#endif
 
     ValHeader implementBOT();
     ValHeader implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode=defs::INCREMENTAL);
@@ -104,24 +119,39 @@ namespace uhal {
     uint32_t getMaxNumberOfBuffers() {return 0;}
     uint32_t getMaxSendSize() {return 0;}
     uint32_t getMaxReplySize() {return 0;}
-
     exception::exception* validate ( uint8_t* aSendBufferStart ,
 				     uint8_t* aSendBufferEnd ,
 				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyStartIt ,
 				     std::deque< std::pair< uint8_t* , uint32_t > >::iterator aReplyEndIt );
-  private:
-    int fd[uioaxi::DEVICES_MAX];
-    uint32_t volatile * hw[uioaxi::DEVICES_MAX];
-    uint32_t addrs[uioaxi::DEVICES_MAX];
-    int      sizes[uioaxi::DEVICES_MAX];
-    char uionames[uioaxi::DEVICES_MAX][128];
-    uioaxi::DevAddr decodeAddress (uint32_t uaddr);
+    //Local store of valwords for dispatch (legacy from uHAL being IP based)
     std::vector< ValWord<uint32_t> > valwords;
     void primeDispatch ();
-    void openDevice (int devnum, uint32_t size, const char *name);
-    int checkDevice (int devnum);
+
+    //structs for handling Bus errors
+    void SetupSignalHandler();
+    void RemoveSignalHandler();
     struct sigaction saBusError;
     struct sigaction saBusError_old;
+
+  private:
+
+    //UHAL to UIO mappings
+    int fd[uioaxi::DEVICES_MAX];
+    uint32_t volatile * hw[uioaxi::DEVICES_MAX];
+    uint64_t addrs[uioaxi::DEVICES_MAX];
+    int      sizes[uioaxi::DEVICES_MAX];
+    std::string uionames[uioaxi::DEVICES_MAX];
+    std::string hw_node_names[uioaxi::DEVICES_MAX];
+
+    //=======================================================
+    //In ProtocolUIO_io.cpp
+    //=======================================================
+    void openDevice (int devnum, uint64_t size, const char *name);
+    int checkDevice (int devnum);    
+    int symlinkFindUIO(Node *lNode, std::string nodeId);
+    void dtFindUIO(Node *lNode, std::string nodeId);
+    uint64_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
+    uioaxi::DevAddr decodeAddress (uint32_t uaddr);
   };
 
 }

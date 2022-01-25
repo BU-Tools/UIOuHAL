@@ -2,6 +2,10 @@
 *#
 */
 *
+!*.cpp
+!*.cxx
+!*.hh
+!*.hpp
 !.gitignore
 !README.md
 !Makefile

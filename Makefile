@@ -1,3 +1,7 @@
+SHELL=bash
+UHAL_VER_MAJOR ?= 2
+UHAL_VER_MINOR ?= 7
+
 CXX?=g++
 
 INCLUDE_PATH = \
@@ -18,8 +22,7 @@ LIBRARIES =    	-lboost_regex \
 		-lboost_filesystem
 
 
-#CXX_FLAGS = -std=c++11 -g -O3 -rdynamic -Wall -MMD -MP -fPIC ${INCLUDE_PATH} -Werror -Wno-literal-suffix 
-CXX_FLAGS = -std=c++11 -g -O3 -rdynamic -Wall -MMD -MP -fPIC ${INCLUDE_PATH} -Wno-literal-suffix 
+CXX_FLAGS = -std=c++11 -g -O3 -rdynamic -Wall -MMD -MP -fPIC ${INCLUDE_PATH} -Wno-literal-suffix -DUHAL_VER_MAJOR=${UHAL_VER_MAJOR} -DUHAL_VER_MINOR=${UHAL_VER_MINOR}
 
 CXX_FLAGS +=-fno-omit-frame-pointer -Wno-ignored-qualifiers -Werror=return-type -Wextra -Wno-long-long -Winit-self -Wno-unused-local-typedefs  -Woverloaded-virtual ${COMPILETIME_ROOT} ${FALLTHROUGH_FLAGS}
 
@@ -89,7 +92,7 @@ endif
 
 
 
-lib/libUIOuHAL.so : obj/ProtocolUIO.o 
+lib/libUIOuHAL.so : obj/ProtocolUIO.o obj/ProtocolUIO_io.o obj/ProtocolUIO_reg_access.o 
 	mkdir -p lib
 	${CXX} ${LINK_LIBRARY_FLAGS}  $^ -o $@
 
