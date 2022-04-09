@@ -43,8 +43,8 @@
    @author Siqi Yuan / Dan Gastler / Theron Jasper Tarigo
 */
 
-#ifndef _uiouhal_ProtocolUIO_hpp_
-#define _uiouhal_ProtocolUIO_hpp_
+#ifndef __PROTOCOL_UIO_HH__
+#define __PROTOCOL_UIO_HH__
 
 #include <uhal/ClientInterface.hpp>
 #include <uhal/ValMem.hpp>
@@ -59,22 +59,23 @@
 
 namespace uioaxi {
 
-  //should only change the ADDR_DEV_BITS
-  const int ADDR_DEV_BITS = 8;
-  const int ADDR_DEV_OFFSET = 32-ADDR_DEV_BITS;
-  const uint32_t ADDR_WORD_MASK = (0x1 << ADDR_DEV_OFFSET) - 1;
-  const uint32_t ADDR_DEV_MASK  = ~ADDR_WORD_MASK;
-  const int DEVICES_MAX = 0x1 << ADDR_DEV_BITS;
-  const int DEVNUMPRLEN = 1+(ADDR_DEV_BITS/4-1);
-
-  typedef uint32_t devnum_t;
-  typedef uint32_t wordnum_t;
-
-  struct DevAddr {
-    devnum_t device;
-    wordnum_t word;
+  struct sUIODevice{
+    sUIODevice():fd(-1),hw(NULL),size(0){};
+    ~sUIODevice(){
+      if(NULL != hw) {
+	munmap((void *)(it->hw),it->size);
+      }
+      if(fd != -1){
+	close(fd);
+      }
+    }
+    int fd;
+    uint32_t volatile * hw;
+    uint64_t addr;
+    int      size;
+    std::string uioname;
+    std::string hw_node_name;
   };
-
 }
 
 namespace uhal {
@@ -85,6 +86,7 @@ namespace uhal {
     UHAL_DEFINE_EXCEPTION_CLASS ( BadUIODevice , "Exception class to handle the case where uio device cannot be opened." )
     UHAL_DEFINE_EXCEPTION_CLASS ( UnimplementedFunction , "Exception class to handle the case where an unimplemented function is called." )
     UHAL_DEFINE_EXCEPTION_CLASS ( UIOBusError , "Exception class for when an axi transaction causes a BUS_ERROR." )
+    UHAL_DEFINE_EXCEPTION_CLASS ( UIODevOOR , "Exception class for when a transaction would be out of mapped range." )
   }
 
   class UIO : public ClientInterface {
@@ -136,22 +138,16 @@ namespace uhal {
   private:
 
     //UHAL to UIO mappings
-    int fd[uioaxi::DEVICES_MAX];
-    uint32_t volatile * hw[uioaxi::DEVICES_MAX];
-    uint64_t addrs[uioaxi::DEVICES_MAX];
-    int      sizes[uioaxi::DEVICES_MAX];
-    std::string uionames[uioaxi::DEVICES_MAX];
-    std::string hw_node_names[uioaxi::DEVICES_MAX];
+    std::map<uint32_t,sUIODevice> devices;
 
     //=======================================================
     //In ProtocolUIO_io.cpp
     //=======================================================
-    void openDevice (int devnum, uint64_t size, const char *name);
-    int checkDevice (int devnum);    
-    int symlinkFindUIO(Node *lNode, std::string nodeId);
+    void openDevice  (sUIODevice & dev);
+    int  checkDevice (sUIODevice & dev);    
+    int  symlinkFindUIO(Node *lNode, std::string nodeId);
     void dtFindUIO(Node *lNode, std::string nodeId);
     uint64_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
-    uioaxi::DevAddr decodeAddress (uint32_t uaddr);
   };
 
 }
