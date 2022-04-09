@@ -86,8 +86,8 @@ namespace uhal {
     Node* lNode = ( mynodetreebuilder.getNodeTree ( std::string("file://")+aUri.mHostname , boost::filesystem::current_path() / "." ) );
 
     //Search through the address table for nodes with endpoint fw_info tags
-    auto itNode = lNode.begin();
-    for(++itNode ; itNode != lNode.end();itNode++){
+    auto itNode = lNode->begin();
+    for(++itNode ; itNode != lNode->end();itNode++){
       //This search goes through all nodes and visits many that aren't needed, but the API doesn't let
       //us easily simplify this.  It only has to be done once, so it isn't the endof the world
       if( itNode->getFirmwareInfo().size() &&
@@ -95,8 +95,8 @@ namespace uhal {
 	//This is an endpoint
 	//add it to the lookup table
 	// try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
-	if (!symlinkFindUIO(*itNode, itNode->getParent())) {
-	  dtFindUIO(*itNode,  itNode->getParent());
+	if (!symlinkFindUIO(itNode->getPath())) {
+	  dtFindUIO(itNode->getPath());
 	}
       }
     }

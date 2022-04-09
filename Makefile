@@ -1,6 +1,6 @@
 SHELL=bash
 UHAL_VER_MAJOR ?= 2
-UHAL_VER_MINOR ?= 7
+UHAL_VER_MINOR ?= 8
 
 CXX?=g++
 

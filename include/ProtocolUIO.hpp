@@ -63,7 +63,7 @@ namespace uioaxi {
     sUIODevice():fd(-1),hw(NULL),size(0){};
     ~sUIODevice(){
       if(NULL != hw) {
-	munmap((void *)(it->hw),it->size);
+	munmap((void *)(hw),size);
       }
       if(fd != -1){
 	close(fd);
@@ -73,8 +73,8 @@ namespace uioaxi {
     uint32_t volatile * hw;
     uint64_t addr;
     int      size;
-    std::string uioname;
-    std::string hw_node_name;
+    std::string uioName;
+    std::string hwNodeName;
   };
 }
 
@@ -138,16 +138,17 @@ namespace uhal {
   private:
 
     //UHAL to UIO mappings
-    std::map<uint32_t,sUIODevice> devices;
+    std::map<uint32_t,uioaxi::sUIODevice> devices;
 
     //=======================================================
     //In ProtocolUIO_io.cpp
     //=======================================================
-    void openDevice  (sUIODevice & dev);
-    int  checkDevice (sUIODevice & dev);    
-    int  symlinkFindUIO(Node *lNode, std::string nodeId);
-    void dtFindUIO(Node *lNode, std::string nodeId);
-    uint64_t SearchDeviceTree(std::string const & dvtPath,std::string const & name);
+    void openDevice  (uioaxi::sUIODevice & dev);
+    int  checkDevice (uioaxi::sUIODevice & dev);    
+    int  symlinkFindUIO(std::string nodeId);
+    void dtFindUIO     (std::string nodeId);
+    uint64_t SearchDeviceTree(std::string const & dvtPath,
+			      std::string const & name);
   };
 
 }
