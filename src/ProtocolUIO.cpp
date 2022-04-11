@@ -88,15 +88,20 @@ namespace uhal {
     //Search through the address table for nodes with endpoint fw_info tags
     auto itNode = lNode->begin();
     for(++itNode ; itNode != lNode->end();itNode++){
+      //fprintf(stderr,"Processing Node: %s (%zd)\n",itNode->getId().c_str(),itNode->getFirmwareInfo().size());
       //This search goes through all nodes and visits many that aren't needed, but the API doesn't let
       //us easily simplify this.  It only has to be done once, so it isn't the endof the world
       if( itNode->getFirmwareInfo().size() &&
-	  itNode->getFirmwareInfo().find("endpoint") != itNode->getFirmwareInfo().end()){
+	  itNode->getFirmwareInfo().find("type") != itNode->getFirmwareInfo().end() &&
+	  itNode->getFirmwareInfo().find("type")->second == std::string("uio_endpoint")
+	  ){
+	
+	std::string name = itNode->getPath().substr(4);
 	//This is an endpoint
 	//add it to the lookup table
 	// try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
-	if (!symlinkFindUIO(itNode->getPath())) {
-	  dtFindUIO(itNode->getPath());
+	if (!symlinkFindUIO(name,itNode->getAddress())) {
+	  dtFindUIO(name,itNode->getAddress());
 	}
       }
     }

@@ -112,18 +112,18 @@ namespace uhal {
   ValHeader UIO::implementWrite (const uint32_t& aAddr, const uint32_t& aValue) {
 
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR * lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -145,18 +145,18 @@ namespace uhal {
 				      const std::vector<uint32_t>& aValues,
 				      const defs::BlockReadWriteMode& aMode) {
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -166,9 +166,9 @@ namespace uhal {
       log (*lExc, "Address (",
 	   Integer(aAddr+aValues.size(),IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -186,18 +186,18 @@ namespace uhal {
 
   ValWord<uint32_t> UIO::implementRead (const uint32_t& aAddr, const uint32_t& aMask) {
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -212,18 +212,18 @@ namespace uhal {
     
   ValVector< uint32_t > UIO::implementReadBlock (const uint32_t& aAddr, const uint32_t& aSize, const defs::BlockReadWriteMode& aMode) {
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -262,18 +262,18 @@ namespace uhal {
 
   ValWord<uint32_t> UIO::implementRMWbits (const uint32_t& aAddr , const uint32_t& aANDterm , const uint32_t& aORterm) {
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }
@@ -293,18 +293,18 @@ namespace uhal {
 
   ValWord<uint32_t> UIO::implementRMWsum (const uint32_t& aAddr, const int32_t& aAddend) {
     //Get the device
-    sUIODevice const & dev = (devices.upper_bound(aAddr))->second;
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
-    uint32_t offset = aAddr-dev.addr;
+    uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
       uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
       log (*lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
-	   Integer(dev.addr,IntFmt<hex,fixed>()),
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
-	   Integer(dev.addr+dev.size,IntFmt<hex,fixed>())
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
       throw *lExc;
     }

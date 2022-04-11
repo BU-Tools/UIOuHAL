@@ -66,8 +66,30 @@
 
 #include <inttypes.h> //for PRI macros
 
+
+namespace uioaxi {
+
+  sUIODevice::sUIODevice() : 
+    fd(-1),
+    hw(NULL),
+    size(0){
+  }
+  
+  sUIODevice::~sUIODevice()
+  {
+    if(NULL != hw) {
+      munmap((void *)(hw),size);
+    }
+    if(fd != -1){
+      close(fd);
+    }
+  }  
+}//uioaxi namespace
+
+
 using namespace uioaxi;
 using namespace boost::filesystem;
+
 
 
 namespace uhal {  
@@ -114,7 +136,7 @@ namespace uhal {
     return address;
   }
 
-  int UIO::symlinkFindUIO(std::string nodeId) {
+  int UIO::symlinkFindUIO(std::string nodeId, uint32_t nodeAddress) {
     // check if debug mode is enabled
     char* UIOUHAL_DEBUG = getenv("UIOUHAL_DEBUG");
     int size = 0;
@@ -191,33 +213,35 @@ namespace uhal {
     }
     // finally, save the mapping
     sUIODevice device;
-    device.addr = address;
-    device.uioName = uioName;
-    device.hwNodeName = nodeId;
-    device.size = size;
-    devices[address] = device;
+    devices[nodeAddress] = device;
+    devices[nodeAddress].uhalAddr = nodeAddress;
+    devices[nodeAddress].addr = address;
+    devices[nodeAddress].uioName = uioName;
+    devices[nodeAddress].hwNodeName = nodeId;
+    devices[nodeAddress].size = size;
 
     // map the memory
-    openDevice(devices[address]);
+    openDevice(devices[nodeAddress]);
     
 
     if (NULL != getenv("UIOUHAL_DEBUG")) {
       printf("Added:\n");
-      printf("  addr:     0x%08X\n",devices[address].addr);
-      printf("  uio name: \"%s\"\n",devices[address].uioName.c_str());
-      printf("  hw  name: \"%s\"\n",devices[address].hwNodeName.c_str());
-      printf("  size:     0x%08X\n",devices[address].size);
-      printf("  map:      %p\n"    ,devices[address].hw);
+      printf("  uhal addr: 0x%08X\n",devices[nodeAddress].uhalAddr);
+      printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
+      printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
+      printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
+      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  map:       %p\n"    ,devices[nodeAddress].hw);
     }
 
     //Check that the device (will throw if it is bad)
-    checkDevice(devices[address]);
+    checkDevice(devices[nodeAddress]);
 
     
     return 1;
   }
 
-  void UIO::dtFindUIO( std::string nodeId) {
+  void UIO::dtFindUIO( std::string nodeId, uint32_t nodeAddress) {
     if (NULL != getenv("UIOUHAL_DEBUG")) {
       printf("Using legacy method for UIO device mapping: %s\n", nodeId.c_str());
     }
@@ -277,33 +301,35 @@ namespace uhal {
 
     // finally, save the mapping
     sUIODevice device;
-    device.addr = address1;
-    device.uioName = uioName;
-    device.hwNodeName = nodeId;
-    device.size = size;
-    devices[address1] = device;
+    devices[nodeAddress] = device;
+    devices[nodeAddress].uhalAddr = nodeAddress;
+    devices[nodeAddress].addr = address1;
+    devices[nodeAddress].uioName = uioName;
+    devices[nodeAddress].hwNodeName = nodeId;
+    devices[nodeAddress].size = size;
 
     // map the memory
-    openDevice(devices[address1]);
+    openDevice(devices[nodeAddress]);
     
 
     if (NULL != getenv("UIOUHAL_DEBUG")) {
       printf("Added:\n");
-      printf("  addr:     0x%08X\n",devices[address1].addr);
-      printf("  uio name: \"%s\"\n",devices[address1].uioName.c_str());
-      printf("  hw  name: \"%s\"\n",devices[address1].hwNodeName.c_str());
-      printf("  size:     0x%08X\n",devices[address1].size);
-      printf("  map:      %p\n"    ,devices[address1].hw);
+      printf("  uhal addr: 0x%08X\n",devices[nodeAddress].uhalAddr);
+      printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
+      printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
+      printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
+      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  map:       %p\n"    ,devices[nodeAddress].hw);
     }
 
     //Check that the device (will throw if it is bad)
-    checkDevice(devices[address1]);
+    checkDevice(devices[nodeAddress]);
 
   }
 
 
   void UIO::openDevice(sUIODevice & dev) {
-    std::string devpath = "/dev" + dev.uioName;
+    std::string devpath = "/dev/" + dev.uioName;
     dev.fd = open(devpath.c_str(), O_RDWR|O_SYNC);
     if (-1==dev.fd) {
       uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();

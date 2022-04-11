@@ -59,20 +59,15 @@
 
 namespace uioaxi {
 
+
   struct sUIODevice{
-    sUIODevice():fd(-1),hw(NULL),size(0){};
-    ~sUIODevice(){
-      if(NULL != hw) {
-	munmap((void *)(hw),size);
-      }
-      if(fd != -1){
-	close(fd);
-      }
-    }
+    sUIODevice();
+    ~sUIODevice();
     int fd;
     uint32_t volatile * hw;
     uint64_t addr;
-    int      size;
+    uint32_t uhalAddr;
+    size_t   size;
     std::string uioName;
     std::string hwNodeName;
   };
@@ -145,8 +140,8 @@ namespace uhal {
     //=======================================================
     void openDevice  (uioaxi::sUIODevice & dev);
     int  checkDevice (uioaxi::sUIODevice & dev);    
-    int  symlinkFindUIO(std::string nodeId);
-    void dtFindUIO     (std::string nodeId);
+    int  symlinkFindUIO(std::string nodeId, uint32_t nodeAddress);
+    void dtFindUIO     (std::string nodeId, uint32_t nodeAddress);
     uint64_t SearchDeviceTree(std::string const & dvtPath,
 			      std::string const & name);
   };
