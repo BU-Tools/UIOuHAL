@@ -11,7 +11,7 @@ LIBRARY_PATH = \
 		-Llib 
 
 INSTALL_ROOT ?= /opt/UIOuHAL/
-
+CACTUS_ROOT  ?= /opt/cactus/
 
 
 
