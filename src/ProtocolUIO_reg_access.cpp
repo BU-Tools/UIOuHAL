@@ -78,6 +78,9 @@ using namespace boost::filesystem;
 //   new:
 //     uint32_t readval;
 //     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+// sigsetjmp stores the context of where it is called and returns 0 initially.   
+// if siglongjmp (in handler) is called, execution returns to this point and acts as if
+// the call returned with the value specified in the second argument of siglongjmp (in handler)
 #define BUS_ERROR_PROTECTION(ACCESS,ADDRESS)					\
   if(SIGBUS == sigsetjmp(env,1)){						\
     uhal::exception::UIOBusError * e = new uhal::exception::UIOBusError();\
@@ -95,7 +98,7 @@ using namespace boost::filesystem;
 sigjmp_buf static env;
 void static signal_handler(int sig){
   if(SIGBUS == sig){
-    siglongjmp(env,sig);    
+    siglongjmp(env,sig);    //jump back to the point in the stack described by env (set by sigsetjmp) and act like the value "sig" was returned in that context
   }
 }
 
