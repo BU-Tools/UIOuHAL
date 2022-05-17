@@ -6,8 +6,11 @@
 !*.cxx
 !*.hh
 !*.hpp
+!*.sh
+!*.xml
 !.gitignore
 !README.md
 !Makefile
 !src/
 !include/
+!*/

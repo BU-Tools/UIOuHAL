@@ -1,0 +1,4 @@
+<node id="TOP">
+  <node id="PL_MEM"           address="0x15000000"  module="file://modules/PL_MEM.xml"                           />
+  <node id="CM_V_INFO"        address="0xc2000000"  module="file://modules/FW_INFO.xml"                          />
+</node>
