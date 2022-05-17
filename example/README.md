@@ -1,4 +1,4 @@
-## Example Code To Read Apollo Registers via UIUuHAL
+## Example Code To Read Apollo Registers via UIOuHAL
 
 This directory contains an example source code to read several registers from the Apollo (tested on the SM02 blade). The simplified address table contains two top-level nodes:
 
