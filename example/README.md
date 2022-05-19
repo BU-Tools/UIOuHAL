@@ -5,18 +5,12 @@ This directory contains an example source code to read several registers from th
 - `CM_V_INFO`: Information related to programming of Virtex FPGA. Intended to reproduce a `BUS_ERROR`, when the Virtex FPGA is not properly programmed.
 - `PL_MEM`: Memory and CPU usage information. Intended to reproduce a successful read.
 
-### Setting up the environment 
-
-First, the `LD_LIBRARY_PATH` must be set so that uHAL libraries in `/opt/cactus` are within the search path. This can be done via:
-
-```
-source set_env.sh
-```
+### Building & Setting up the environment 
 
 Then the code can be built via `make`:
 
 ```
-# Builds the executable under bin
+# Builds the executable under bin/
 make
 
 # To clean build products
@@ -24,6 +18,12 @@ make clean
 ```
 
 After executing `make`, the resulting executable is located in the following path: `bin/main`.
+
+Before running the `bin/main` executable, the `LD_LIBRARY_PATH` must be set so that UIOuHAL library located in `/opt/UIOuHAL` is within the search path. This can be done via:
+
+```
+source set_env.sh
+```
 
 ### Doing the reads
 
