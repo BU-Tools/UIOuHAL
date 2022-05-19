@@ -16,13 +16,13 @@ int main(int argc, char* argv[])
   const std::string registerName = argv[1];
 
   // Connection file to use
-  std::string connectionFile("file:///home/cms/alp/ReadApollo/address_table/connections.xml");
+  std::string connectionFile("file:///home/cms/alp/UIOuHAL/example/address_table/connections.xml");
   std::string connectionFileEntry("test.0");
 
   std::cout << "Using connection file: " << connectionFile << std::endl;
 
   // Get the connection manager
-  uhal::ConnectionManager manager( connectionFile.c_str(),std::vector<std::string>(1,"uioaxi-1.0")); 
+  uhal::ConnectionManager manager( connectionFile.c_str(), std::vector<std::string>(1,"uioaxi-1.0") ); 
   std::cout << "Constructed ConnectionManager" << std::endl;
 
   // Get device interface from connection manager
