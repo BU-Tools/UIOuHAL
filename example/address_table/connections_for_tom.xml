@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<connections>
+  <!-- be sure to use the same file in both "uri" and "address_table" -->
+  <connection id="apollo.c2c.vu7p" uri="ipbusmmap-2.0:///dev/uioVIRTEX_IPBUS?offset=0x0" address_table="file://mmap/top_emp.xml" />
+  <connection id="test.0"          uri="uioaxi-1.0:///home/cms/alp/ReadApollo/address_table/address_apollo.xml"                     address_table="file:///home/cms/alp/ReadApollo/address_table/address_apollo.xml" />
+</connections>

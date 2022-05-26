@@ -1,0 +1,13 @@
+<node fwinfo="endpoint;width=2">
+  <node id="magic" address="0x0"/>
+  <node id="versions" address="0x1" description="Firmware version registers">
+    <node id="framework" address="0x0">
+      <node id="design" mask="0xff000000" description="ID for hardware design of board"/>
+      <node id="major" mask="0x00ff0000"/>
+      <node id="minor" mask="0x0000ff00"/>
+      <node id="patch" mask="0x000000ff"/>
+    </node>
+    <node id="payload" address="0x1" />
+  </node>
+  <node id="build_time" address="0x3"/>
+</node>
