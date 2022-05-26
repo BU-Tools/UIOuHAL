@@ -15,8 +15,8 @@ int main(int argc, char* argv[])
   // Get the register name to read from the command line
   const std::string registerName = argv[1];
 
-  // Connection file to use
-  std::string connectionFile("file:///home/cms/alp/UIOuHAL/example/address_table/connections.xml");
+  // Connection file to use: Path is relative to the bin/main executable
+  std::string connectionFile("file://../address_table/connections.xml");
   std::string connectionFileEntry("test.0");
 
   std::cout << "Using connection file: " << connectionFile << std::endl;
