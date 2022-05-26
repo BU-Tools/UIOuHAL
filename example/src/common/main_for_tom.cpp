@@ -6,6 +6,8 @@
 int main(int argc, char* argv[])
 {
   // Connection file to use: Path is relative to the bin/main executable
+  // This connection file has two set of hardware interfaces:
+  // 1. UIOuHAL interface, 2. MemMap interface
   std::string connectionFile("file://../address_table/connections_for_tom.xml");
 
   std::cout << "Using connection file: " << connectionFile << std::endl;
@@ -28,12 +30,12 @@ int main(int argc, char* argv[])
   hw_mmap = new uhal::HwInterface(manager.getDevice ( connectionFileEntryMemMap.c_str() ));
   std::cout << "Got the HW interface for MemMap" << std::endl;
 
-
   // Now, read the registers with both interfaces
   std::string registerName("PL_MEM.ARM.CPU_LOAD");
   std::cout << "Trying to read register: " << registerName << " with UIOuHAL interface" << std::endl;
   uhal::ValWord<uint32_t> ret_uio;
 
+  // UIOuHAL read 
   ret_uio = hw_uio->getNode(registerName).read();
   hw_uio->dispatch();
   std::cout << "Succesfully read register" << std::endl;
@@ -43,9 +45,11 @@ int main(int argc, char* argv[])
   std::cout << "Trying to read register: " << registerNameMMap << " with MemMap interface" << std::endl;
   uhal::ValWord<uint32_t> ret_mmap;
 
-  // It should go bad here..
+  // MemMap read, it should go bad here..
   ret_mmap = hw_mmap->getNode(registerNameMMap).read();
   hw_mmap->dispatch();
+  std::cout << "Succesfully read register" << std::endl;
+  std::cout << "Value: 0x" << std::hex << ret_mmap.value() << std::endl; 
 
   return 0;
 }
