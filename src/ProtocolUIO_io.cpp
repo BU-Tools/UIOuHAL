@@ -230,7 +230,7 @@ namespace uhal {
       printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
       printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
       printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
-      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  size:      0x%08" PRIX64 "\n",devices[nodeAddress].size);
       printf("  map:       %p\n"    ,devices[nodeAddress].hw);
     }
 
@@ -318,7 +318,7 @@ namespace uhal {
       printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
       printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
       printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
-      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  size:      0x%08" PRIX64 "\n",devices[nodeAddress].size);
       printf("  map:       %p\n"    ,devices[nodeAddress].hw);
     }
 
