@@ -107,8 +107,8 @@ namespace uhal {
     }
   
     if(devices.size() == 0){
-      uhal::exception::UIOMISSING * e = new uhal::exception::UIOMISSING();
-      log(*e, "Found no endpoints.  This must be wrong.\n  Are you using an old style address table without fwinfo=\"uio_endpoint\" attributes for each enpoint?");
+      uhal::exception::UIOMISSING e;
+      log(e, "Found no endpoints.  This must be wrong.\n  Are you using an old style address table without fwinfo=\"uio_endpoint\" attributes for each enpoint?");
       throw e;
     }
 

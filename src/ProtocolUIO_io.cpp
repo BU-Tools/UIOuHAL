@@ -332,16 +332,16 @@ namespace uhal {
     std::string devpath = "/dev/" + dev.uioName;
     dev.fd = open(devpath.c_str(), O_RDWR|O_SYNC);
     if (-1==dev.fd) {
-      uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log( *lExc , "Failed to open ", devpath, ": ", strerror(errno));
-      throw *lExc;
+      uhal::exception::BadUIODevice lExc;
+      log( lExc , "Failed to open ", devpath, ": ", strerror(errno));
+      throw lExc;
     }
     dev.hw = (uint32_t*)mmap(NULL, dev.size*sizeof(uint32_t),
 			                      PROT_READ|PROT_WRITE, MAP_SHARED,
 			                      dev.fd, 0x0);
     if (dev.hw==MAP_FAILED) {
-      uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log ( Debug() , "Failed to map ", devpath, ": ",  strerror(errno));
+      uhal::exception::BadUIODevice lExc;
+      log ( lExc , "Failed to map ", devpath, ": ",  strerror(errno));
       dev.hw=NULL;
       throw lExc;
     }
@@ -353,9 +353,9 @@ namespace uhal {
   int UIO::checkDevice (sUIODevice & dev) {
     if (dev.hw == NULL) {
       // include name of device in log output:
-      uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No mapping for Device: ", dev.hwNodeName);
-      throw *lExc;
+      uhal::exception::BadUIODevice lExc;
+      log (lExc , "No mapping for Device: ", dev.hwNodeName);
+      throw lExc;
       return 1;
     }
     return 0;
