@@ -83,11 +83,11 @@ using namespace boost::filesystem;
 // the call returned with the value specified in the second argument of siglongjmp (in handler)
 #define BUS_ERROR_PROTECTION(ACCESS,ADDRESS)					\
   if(SIGBUS == sigsetjmp(env,1)){						\
-    uhal::exception::UIOBusError * e = new uhal::exception::UIOBusError();\
+    uhal::exception::UIOBusError e;\
     char error_message[] = "Reg: 0x00000000"; \
     snprintf(error_message,strlen(error_message),"Reg: 0x%08X",ADDRESS); \
-    e->append(error_message); \
-    throw *e;\
+    e.append(error_message); \
+    throw e;\
   }else{ \
     ACCESS;					\
   }
@@ -123,15 +123,15 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR * lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
     
     
@@ -141,9 +141,9 @@ namespace uhal {
 
   ValHeader UIO::implementBOT() {
     log ( Debug() , "Byte Order Transaction");
-    uhal::exception::UnimplementedFunction* lExc = new uhal::exception::UnimplementedFunction();
-    log (*lExc, "Function implementBOT() is not yet implemented.");
-    throw *lExc;
+    uhal::exception::UnimplementedFunction lExc;
+    log (lExc, "Function implementBOT() is not yet implemented.");
+    throw lExc;
     return ValHeader();
   }
 
@@ -156,27 +156,27 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
     if ((offset+ aValues.size()) >= dev.size){
       //offset + size is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr+aValues.size(),IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
 
     std::vector<uint32_t>::const_iterator ptr;
@@ -196,15 +196,15 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
 
     uint32_t readval;
@@ -222,15 +222,15 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
 
     std::vector<uint32_t> read_vector(aSize);
@@ -272,15 +272,15 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
     
     //read the current value
@@ -303,15 +303,15 @@ namespace uhal {
     uint32_t offset = aAddr-dev.uhalAddr;
     if (offset >= dev.size){
       //offset is ouside of mapped range
-      uhal::exception::UIODevOOR* lExc = new uhal::exception::UIODevOOR();
-      log (*lExc, "Address (",
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
 	   Integer(aAddr,IntFmt<hex,fixed>()),
 	   ") out of mapped range: ",
 	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
 	   " to ",
 	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
 	   );
-      throw *lExc;
+      throw lExc;
     }
 
     //read the current value
