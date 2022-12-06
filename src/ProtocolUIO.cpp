@@ -80,49 +80,48 @@ namespace uhal {
 	    const boost::posix_time::time_duration&aTimeoutPeriod
 	    ) :
     ClientInterface(aId,aUri,aTimeoutPeriod)
-  { 
-    for (int i=0; i<uioaxi::DEVICES_MAX ; i++){ fd[i]=-1; hw[i]=NULL; sizes[i]=0; }
-    // Get the filename of the address table from the connection file. Then read it through the NodeTreeBuilder
-    // The NodeTreeBuilder should be able to just use the existing node tree rather than rebuild a new one
+  {
+    //Search through the device tree for fw_info tags
     NodeTreeBuilder & mynodetreebuilder = NodeTreeBuilder::getInstance();
-    //boost::shared_ptr< Node > lNode ( mynodetreebuilder.getNodeTree ( tabfname , boost::filesystem::current_path() / "." ) );
     Node* lNode = ( mynodetreebuilder.getNodeTree ( std::string("file://")+aUri.mHostname , boost::filesystem::current_path() / "." ) );
-    // Getting the IDs for only first layer nodes (nodes that contain device labels). matching names that doesn't contain a "."
-    std::vector< std::string > top_node_Ids = lNode->getNodes("^[^.]+$");
-    // For each device label, search for its matching device
-    for (std::vector<std::string>::iterator nodeId = top_node_Ids.begin(); nodeId != top_node_Ids.end(); ++nodeId) {
-      // try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
-      if (!symlinkFindUIO(lNode, *nodeId)) {
-        dtFindUIO(lNode, *nodeId);
+
+    //Search through the address table for nodes with endpoint fw_info tags
+    auto itNode = lNode->begin();
+    for(++itNode ; itNode != lNode->end();itNode++){
+      //fprintf(stderr,"Processing Node: %s (%zd)\n",itNode->getId().c_str(),itNode->getFirmwareInfo().size());
+      //This search goes through all nodes and visits many that aren't needed, but the API doesn't let
+      //us easily simplify this.  It only has to be done once, so it isn't the endof the world
+      if( itNode->getFirmwareInfo().size() &&
+	  itNode->getFirmwareInfo().find("type") != itNode->getFirmwareInfo().end() &&
+	  itNode->getFirmwareInfo().find("type")->second == std::string("uio_endpoint")
+	  ){
+	
+	std::string name = itNode->getPath().substr(4);
+	//This is an endpoint
+	//add it to the lookup table
+	// try the simple method using "linux,uio-name" patch, else use the complex method (iterating thru dirs)
+	if (!symlinkFindUIO(name,itNode->getAddress())) {
+	  dtFindUIO(name,itNode->getAddress());
+	}
       }
     }
   
+    if(devices.size() == 0){
+      uhal::exception::UIOMISSING e;
+      log(e, "Found no endpoints.  This must be wrong.\n  Are you using an old style address table without fwinfo=\"uio_endpoint\" attributes for each enpoint?");
+      throw e;
+    }
+
     //Now that everything created sucessfully, we can deal with signal handling
     SetupSignalHandler();
   }
 
   UIO::~UIO () {
-    //unmap all mmaps
-    for (int i=0; i<uioaxi::DEVICES_MAX ; i++) {
-	    if(NULL != hw[i]) {
-	      munmap((void *)(hw[i]),sizes[i]);
-	      hw[i] = NULL;
-	      sizes[i] = 0;
-	      close(fd[i]);
-	      fd[i] = -1;
-      }
-    }
     log ( Debug() , "UIO: destructor" );
     RemoveSignalHandler();
 
   }
 
-  DevAddr UIO::decodeAddress (uint32_t uaddr) {
-    DevAddr da;
-    da.device = (uaddr&ADDR_DEV_MASK)>>ADDR_DEV_OFFSET;
-    da.word = (uaddr&ADDR_WORD_MASK);
-    return da;
-  }
   
 }   // namespace uhal
 

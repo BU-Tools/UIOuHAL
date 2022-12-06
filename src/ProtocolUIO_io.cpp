@@ -66,13 +66,36 @@
 
 #include <inttypes.h> //for PRI macros
 
+
+namespace uioaxi {
+
+  sUIODevice::sUIODevice() : 
+    fd(-1),
+    hw(NULL),
+    size(0){
+  }
+  
+  sUIODevice::~sUIODevice()
+  {
+    if(NULL != hw) {
+      munmap((void *)(hw),size);
+    }
+    if(fd != -1){
+      close(fd);
+    }
+  }  
+}//uioaxi namespace
+
+
 using namespace uioaxi;
 using namespace boost::filesystem;
 
 
+
 namespace uhal {  
 
-  uint64_t UIO::SearchDeviceTree(std::string const & dvtPath,std::string const & name) {
+  uint64_t UIO::SearchDeviceTree(std::string const & dvtPath,
+				 std::string const & name) {
     uint64_t address = 0;
     FILE *labelfile=0; 
     char label[128];
@@ -113,25 +136,23 @@ namespace uhal {
     return address;
   }
 
-  int UIO::symlinkFindUIO(Node *lNode, std::string nodeId) {
+  int UIO::symlinkFindUIO(std::string nodeId, uint32_t nodeAddress) {
     // check if debug mode is enabled
     char* UIOUHAL_DEBUG = getenv("UIOUHAL_DEBUG");
-    int devnum = -1, size = 0;
-    std::string uioname = "";
+    int size = 0;
+    std::string uioName = "";
     char sizechar[128]="", addrchar[128]="";
     uint64_t address = 0;
-    // get the device number out from the node
-    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
     // uio name set by the "linux,uio-name" device-tree property -> ex: "uio_K_C2C_PHY"
     std::string prefix = "/dev/";
-    uioname = std::string(uio_prefix) + nodeId;
+    uioName = std::string(uio_prefix) + nodeId;
     // first check if /dev/uio_name exists and if so get the uio device file it points to: /dev/uio_NAME -> /dev/uioN
     std::string deviceFile;
     if (NULL != UIOUHAL_DEBUG) {
-      printf("searching for /dev/%s symlink\n", uioname.c_str());
+      printf("searching for /dev/%s symlink\n", uioName.c_str());
     }
     for (directory_iterator itUIO(prefix); itUIO != directory_iterator(); ++itUIO) {
-      if ((is_directory(itUIO->path())) || (itUIO->path().string().find(uioname) == std::string::npos)) {
+      if ((is_directory(itUIO->path())) || (itUIO->path().string().find(uioName) == std::string::npos)) {
         continue;
       }
       else {
@@ -141,9 +162,9 @@ namespace uhal {
         }
         else {
           if (NULL != UIOUHAL_DEBUG) {
-            printf("unable to resolve symlink /dev/%s -> /dev/uioN, using legacy method", uioname.c_str());
+            printf("unable to resolve symlink /dev/%s -> /dev/uioN, using legacy method", uioName.c_str());
           }
-          log (Debug(), "Symlink ", prefix, uioname, " could not be resolved.");
+          log (Debug(), "Symlink ", prefix, uioName, " could not be resolved.");
           return 0;
         }
       }
@@ -191,42 +212,45 @@ namespace uhal {
       log(Debug(), "Errror: Simple UIO finding method could load device ", nodeId.c_str(), "cannot find device or size 0");
     }
     // finally, save the mapping
-    addrs[devnum] = address;
-    uionames[devnum] = uioname;
-    hw_node_names[devnum] = nodeId;
-    sizes[devnum] = size;
+    sUIODevice device;
+    devices[nodeAddress] = device;
+    devices[nodeAddress].uhalAddr = nodeAddress;
+    devices[nodeAddress].addr = address;
+    devices[nodeAddress].uioName = uioName;
+    devices[nodeAddress].hwNodeName = nodeId;
+    devices[nodeAddress].size = size;
 
     // map the memory
-    openDevice(devnum, size, uioname.c_str());
-
+    openDevice(devices[nodeAddress]);
+    
 
     if (NULL != getenv("UIOUHAL_DEBUG")) {
       printf("Added:\n");
-      printf("  dev#:     %d\n",devnum);
-      printf("  addr:     0x%08X\n",addrs[devnum]);
-      printf("  uio name: \"%s\"\n",uionames[devnum].c_str());
-      printf("  hw  name: \"%s\"\n",hw_node_names[devnum].c_str());
-      printf("  size:     0x%08X\n",sizes[devnum]);
-      printf("  map:      %p\n",hw[devnum]);
+      printf("  uhal addr: 0x%08X\n",devices[nodeAddress].uhalAddr);
+      printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
+      printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
+      printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
+      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  map:       %p\n"    ,devices[nodeAddress].hw);
     }
 
     //Check that the device (will throw if it is bad)
-    checkDevice(devnum);
+    checkDevice(devices[nodeAddress]);
 
+    
     return 1;
   }
 
-  void UIO::dtFindUIO(Node *lNode, std::string nodeId) {
+  void UIO::dtFindUIO( std::string nodeId, uint32_t nodeAddress) {
     if (NULL != getenv("UIOUHAL_DEBUG")) {
       printf("Using legacy method for UIO device mapping: %s\n", nodeId.c_str());
     }
     // copied from Siqi's original code
-    int devnum = -1, size = 0;
-    std::string uioname;
+    int size = 0;
+    std::string uioName;
     char sizechar[128]="", addrchar[128]="";
     uint64_t address1 = 0, address2 = 0;
-    // get devnum from node
-    devnum = decodeAddress(lNode->getNode(nodeId).getAddress()).device;
+
     // iterate thru filesys to get the matching uio device 
     std::string uiopath = "/sys/class/uio/";
     std::string dvtpath = "/proc/device-tree/";
@@ -269,53 +293,69 @@ namespace uhal {
         fgets(sizechar,128,sizefile); fclose(sizefile);
         //the size was in number of bytes, convert into number of uint32
         size=std::strtoul( sizechar, 0, 16)/4;  
-        //strcpy(uioname,x->path().filename().native().c_str());
-        uioname = x->path().filename().native();
+        //strcpy(uioName,x->path().filename().native().c_str());
+        uioName = x->path().filename().native();
         break;
       }
     }
-    //save the mapping
-    addrs[devnum]=address1;
-    uionames[devnum] = uioname;
-    hw_node_names[devnum] = nodeId;
-    sizes[devnum]=size;
-    openDevice(devnum, size, uioname.c_str());
+
+    // finally, save the mapping
+    sUIODevice device;
+    devices[nodeAddress] = device;
+    devices[nodeAddress].uhalAddr = nodeAddress;
+    devices[nodeAddress].addr = address1;
+    devices[nodeAddress].uioName = uioName;
+    devices[nodeAddress].hwNodeName = nodeId;
+    devices[nodeAddress].size = size;
+
+    // map the memory
+    openDevice(devices[nodeAddress]);
+    
+
+    if (NULL != getenv("UIOUHAL_DEBUG")) {
+      printf("Added:\n");
+      printf("  uhal addr: 0x%08X\n",devices[nodeAddress].uhalAddr);
+      printf("  addr:      0x%016" PRIX64 "\n",devices[nodeAddress].addr);
+      printf("  uio name:  \"%s\"\n",devices[nodeAddress].uioName.c_str());
+      printf("  hw  name:  \"%s\"\n",devices[nodeAddress].hwNodeName.c_str());
+      printf("  size:      0x%08X\n",devices[nodeAddress].size);
+      printf("  map:       %p\n"    ,devices[nodeAddress].hw);
+    }
+
+    //Check that the device (will throw if it is bad)
+    checkDevice(devices[nodeAddress]);
+
   }
 
 
-  void UIO::openDevice(int i, uint64_t size, const char *name) {
-    if (i<0||i>=DEVICES_MAX) return;
-    const char *prefix = "/dev";
-    size_t devpath_cap = strlen(prefix)+1+strlen(name)+1;
-    char *devpath = (char*)malloc(devpath_cap);
-    snprintf(devpath,devpath_cap, "%s/%s", prefix, name);
-    fd[i] = open(devpath, O_RDWR|O_SYNC);
-    if (-1==fd[i]) {
-      log( Debug() , "Failed to open ", devpath, ": ", strerror(errno));
-      goto end;
+  void UIO::openDevice(sUIODevice & dev) {
+    std::string devpath = "/dev/" + dev.uioName;
+    dev.fd = open(devpath.c_str(), O_RDWR|O_SYNC);
+    if (-1==dev.fd) {
+      uhal::exception::BadUIODevice lExc;
+      log( lExc , "Failed to open ", devpath, ": ", strerror(errno));
+      throw lExc;
     }
-    hw[i] = (uint32_t*)mmap(NULL, size*sizeof(uint32_t),
+    dev.hw = (uint32_t*)mmap(NULL, dev.size*sizeof(uint32_t),
 			                      PROT_READ|PROT_WRITE, MAP_SHARED,
-			                      fd[i], 0x0);
-    if (hw[i]==MAP_FAILED) {
-      log ( Debug() , "Failed to map ", devpath, ": ",  strerror(errno));
-      hw[i]=NULL;
-      goto end;
+			                      dev.fd, 0x0);
+    if (dev.hw==MAP_FAILED) {
+      uhal::exception::BadUIODevice lExc;
+      log ( lExc , "Failed to map ", devpath, ": ",  strerror(errno));
+      dev.hw=NULL;
+      throw lExc;
     }
-    log ( Debug(), "Mapped ", devpath, " as device number ", Integer( i, IntFmt<hex,fixed>()),
-	  " size ", Integer( size, IntFmt<hex, fixed>()));
-  end:
-    free(devpath);
+    log ( Debug(), "Mapped ", devpath,
+	  " size ", Integer( dev.size, IntFmt<hex, fixed>()));
+    
   }
 
-  int UIO::checkDevice (int i) {
-    if (!hw[i]) {
-      // Todo: replace with an exception
+  int UIO::checkDevice (sUIODevice & dev) {
+    if (dev.hw == NULL) {
       // include name of device in log output:
-      std::string deviceName = hw_node_names[i];
-      uhal::exception::BadUIODevice* lExc = new uhal::exception::BadUIODevice();
-      log (*lExc , "No device with number ", Integer(i, IntFmt< hex, fixed>() ), " - Device: ", deviceName);
-      throw *lExc;
+      uhal::exception::BadUIODevice lExc;
+      log (lExc , "No mapping for Device: ", dev.hwNodeName);
+      throw lExc;
       return 1;
     }
     return 0;

@@ -78,10 +78,16 @@ using namespace boost::filesystem;
 //   new:
 //     uint32_t readval;
 //     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
-#define BUS_ERROR_PROTECTION(ACCESS) \
+// sigsetjmp stores the context of where it is called and returns 0 initially.   
+// if siglongjmp (in handler) is called, execution returns to this point and acts as if
+// the call returned with the value specified in the second argument of siglongjmp (in handler)
+#define BUS_ERROR_PROTECTION(ACCESS,ADDRESS)					\
   if(SIGBUS == sigsetjmp(env,1)){						\
-    uhal::exception::UIOBusError * e = new uhal::exception::UIOBusError();\
-    throw *e;\
+    uhal::exception::UIOBusError e;\
+    char error_message[] = "Reg: 0x00000000"; \
+    snprintf(error_message,strlen(error_message),"Reg: 0x%08X",ADDRESS); \
+    e.append(error_message); \
+    throw e;\
   }else{ \
     ACCESS;					\
   }
@@ -92,7 +98,7 @@ using namespace boost::filesystem;
 sigjmp_buf static env;
 void static signal_handler(int sig){
   if(SIGBUS == sig){
-    siglongjmp(env,sig);    
+    siglongjmp(env,sig);    //jump back to the point in the stack described by env (set by sigsetjmp) and act like the value "sig" was returned in that context
   }
 }
 
@@ -110,44 +116,99 @@ namespace uhal {
   }
 
   ValHeader UIO::implementWrite (const uint32_t& aAddr, const uint32_t& aValue) {
-    DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)){ return ValWord<uint32_t>();}
-    uint32_t writeval = aValue;
+
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
+
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
+    }
     
-    hw[da.device][da.word] = writeval;
+    
+    BUS_ERROR_PROTECTION(dev.hw[offset] = aValue,aAddr);
     return ValHeader();
   }
 
   ValHeader UIO::implementBOT() {
     log ( Debug() , "Byte Order Transaction");
-    uhal::exception::UnimplementedFunction* lExc = new uhal::exception::UnimplementedFunction();
-    log (*lExc, "Function implementBOT() is not yet implemented.");
-    throw *lExc;
+    uhal::exception::UnimplementedFunction lExc;
+    log (lExc, "Function implementBOT() is not yet implemented.");
+    throw lExc;
     return ValHeader();
   }
 
-  ValHeader UIO::implementWriteBlock (const uint32_t& aAddr, const std::vector<uint32_t>& aValues, const defs::BlockReadWriteMode& aMode) {
-    DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) return ValWord<uint32_t>();
-    uint32_t lAddr = da.word ;
+  ValHeader UIO::implementWriteBlock (const uint32_t& aAddr,
+				      const std::vector<uint32_t>& aValues,
+				      const defs::BlockReadWriteMode& aMode) {
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
+
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
+    }
+    if ((offset+ aValues.size()) >= dev.size){
+      //offset + size is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr+aValues.size(),IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
+    }
+
     std::vector<uint32_t>::const_iterator ptr;
     for (ptr = aValues.begin(); ptr < aValues.end(); ptr++) {
-      uint32_t writeval = *ptr;
-      BUS_ERROR_PROTECTION(hw[da.device][lAddr] = writeval)
+      BUS_ERROR_PROTECTION(dev.hw[offset] = *ptr,aAddr)
       if ( aMode == defs::INCREMENTAL ) {
-        lAddr ++;
+        offset ++;
       }
     }
     return ValHeader();
   }
 
   ValWord<uint32_t> UIO::implementRead (const uint32_t& aAddr, const uint32_t& aMask) {
-    DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) {
-      return ValWord<uint32_t>();
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
+
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
     }
+
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
     ValWord<uint32_t> vw(readval, aMask);
     valwords.push_back(vw);
     primeDispatch();
@@ -155,17 +216,31 @@ namespace uhal {
   }
     
   ValVector< uint32_t > UIO::implementReadBlock (const uint32_t& aAddr, const uint32_t& aSize, const defs::BlockReadWriteMode& aMode) {
-    DevAddr da = decodeAddress(aAddr);
-    uint32_t lAddr = da.word ;
-    if (checkDevice(da.device)) return ValVector<uint32_t>();
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
+
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
+    }
+
     std::vector<uint32_t> read_vector(aSize);
     std::vector<uint32_t>::iterator ptr;
     for (ptr = read_vector.begin(); ptr < read_vector.end(); ptr++) {
       uint32_t readval;
-      BUS_ERROR_PROTECTION(readval = hw[da.device][lAddr])
+      BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
       *ptr = readval;
       if ( aMode == defs::INCREMENTAL ) {
-	      lAddr ++;
+	      offset ++;
       }
     }
     return ValVector< uint32_t> (read_vector);
@@ -191,34 +266,61 @@ namespace uhal {
   }
 
   ValWord<uint32_t> UIO::implementRMWbits (const uint32_t& aAddr , const uint32_t& aANDterm , const uint32_t& aORterm) {
-    DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) return ValWord<uint32_t>();
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
 
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
+    }
+    
     //read the current value
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
 
     //apply and and or operations
     readval &= aANDterm;
     readval |= aORterm;
-    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval)
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(dev.hw[offset] = readval,aAddr)
+    BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
     return ValWord<uint32_t>(readval);
   }
 
 
   ValWord<uint32_t> UIO::implementRMWsum (const uint32_t& aAddr, const int32_t& aAddend) {
-    DevAddr da = decodeAddress(aAddr);
-    if (checkDevice(da.device)) {
-      return ValWord<uint32_t>();
+    //Get the device
+    sUIODevice const & dev = (--(devices.upper_bound(aAddr)))->second;
+
+    uint32_t offset = aAddr-dev.uhalAddr;
+    if (offset >= dev.size){
+      //offset is ouside of mapped range
+      uhal::exception::UIODevOOR lExc;
+      log (lExc, "Address (",
+	   Integer(aAddr,IntFmt<hex,fixed>()),
+	   ") out of mapped range: ",
+	   Integer(dev.uhalAddr,IntFmt<hex,fixed>()),
+	   " to ",
+	   Integer(dev.uhalAddr+dev.size,IntFmt<hex,fixed>())
+	   );
+      throw lExc;
     }
+
     //read the current value
     uint32_t readval;
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
     //apply and and or operations
     readval += aAddend;
-    BUS_ERROR_PROTECTION(hw[da.device][da.word] = readval)
-    BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
+    BUS_ERROR_PROTECTION(dev.hw[offset] = readval,aAddr)
+    BUS_ERROR_PROTECTION(readval = dev.hw[offset],aAddr)
     return ValWord<uint32_t>(readval);
   }
 

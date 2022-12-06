@@ -1,6 +1,6 @@
 SHELL=bash
 UHAL_VER_MAJOR ?= 2
-UHAL_VER_MINOR ?= 7
+UHAL_VER_MINOR ?= 8
 
 CXX?=g++
 
@@ -9,6 +9,10 @@ INCLUDE_PATH = \
 
 LIBRARY_PATH = \
 		-Llib 
+
+INSTALL_ROOT ?= /opt/UIOuHAL/
+CACTUS_ROOT  ?= /opt/cactus/
+
 
 
 ifdef BOOST_INC
@@ -99,3 +103,7 @@ lib/libUIOuHAL.so : obj/ProtocolUIO.o obj/ProtocolUIO_io.o obj/ProtocolUIO_reg_a
 obj/%.o : src/%.cpp
 	mkdir -p obj
 	${CXX} ${CXX_FLAGS} -c $^ -o $@
+
+install: lib/libUIOuHAL.so
+	@cp -r lib     ${INSTALL_ROOT}
+	@cp -r include ${INSTALL_ROOT}
