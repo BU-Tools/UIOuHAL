@@ -80,7 +80,6 @@ namespace uhal {
     UHAL_DEFINE_EXCEPTION_CLASS ( UnmatchedLabel , "Exception class to handle the case where matching a label to a device failed." )
     UHAL_DEFINE_EXCEPTION_CLASS ( BadUIODevice , "Exception class to handle the case where uio device cannot be opened." )
     UHAL_DEFINE_EXCEPTION_CLASS ( UnimplementedFunction , "Exception class to handle the case where an unimplemented function is called." )
-    UHAL_DEFINE_EXCEPTION_CLASS ( UIOBusError , "Exception class for when an axi transaction causes a BUS_ERROR." )
     UHAL_DEFINE_EXCEPTION_CLASS ( UIODevOOR , "Exception class for when a transaction would be out of mapped range." )
     UHAL_DEFINE_EXCEPTION_CLASS ( UIOMISSING , "No UIO endpoints found. Endpoints must be labeled with fwinfo=\"uio_endpoint\".  Are you using an old style address table?" )
   }
@@ -125,11 +124,6 @@ namespace uhal {
     std::vector< ValWord<uint32_t> > valwords;
     void primeDispatch ();
 
-    //structs for handling Bus errors
-    void SetupSignalHandler();
-    void RemoveSignalHandler();
-    struct sigaction saBusError;
-    struct sigaction saBusError_old;
 
   private:
 

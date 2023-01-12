@@ -112,14 +112,10 @@ namespace uhal {
       throw e;
     }
 
-    //Now that everything created sucessfully, we can deal with signal handling
-    SetupSignalHandler();
   }
 
   UIO::~UIO () {
     log ( Debug() , "UIO: destructor" );
-    RemoveSignalHandler();
-
   }
 
   
