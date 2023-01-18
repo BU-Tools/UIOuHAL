@@ -48,7 +48,8 @@
 
 #include <uhal/ClientInterface.hpp>
 #include <uhal/ValMem.hpp>
-#include "uhal/log/exception.hpp"
+#include <uhal/log/exception.hpp>
+#include <uhal/SigBusGuard.hpp>
 #include <signal.h> //for handling of SIG_BUS signals
 
 /*

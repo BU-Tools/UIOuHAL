@@ -54,10 +54,10 @@
 #include <uhal/Node.hpp>
 #include <uhal/NodeTreeBuilder.hpp>
 #include <pugixml.hpp>
-#include "uhal/log/LogLevels.hpp"
-#include "uhal/log/log_inserters.integer.hpp"
-#include "uhal/log/log.hpp"
-#include "uhal/SigBusGuard.hpp"
+#include <uhal/log/LogLevels.hpp>
+#include <uhal/log/log_inserters.integer.hpp>
+#include <uhal/log/log.hpp>
+
 
 
 #include "uhal/ClientFactory.hpp" //for runtime linking
