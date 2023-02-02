@@ -54,9 +54,11 @@
 #include <uhal/Node.hpp>
 #include <uhal/NodeTreeBuilder.hpp>
 #include <pugixml.hpp>
-#include "uhal/log/LogLevels.hpp"
-#include "uhal/log/log_inserters.integer.hpp"
-#include "uhal/log/log.hpp"
+#include <uhal/log/LogLevels.hpp>
+#include <uhal/log/log_inserters.integer.hpp>
+#include <uhal/log/log.hpp>
+
+
 
 #include "uhal/ClientFactory.hpp" //for runtime linking
 
@@ -69,51 +71,16 @@
 using namespace uioaxi;
 using namespace boost::filesystem;
 
-//This macro handles the possibility of a SIG_BUS signal and property throws an exception
-//The command you want to run is passed via ACESS and will be in a if{}else{} block, so
-//Call it appropriately. 
-// ex
-//   old:
-//     uint32_t readval = hw[da.device][da.word];
-//   new:
-//     uint32_t readval;
-//     BUS_ERROR_PROTECTION(readval = hw[da.device][da.word])
-// sigsetjmp stores the context of where it is called and returns 0 initially.   
-// if siglongjmp (in handler) is called, execution returns to this point and acts as if
-// the call returned with the value specified in the second argument of siglongjmp (in handler)
-#define BUS_ERROR_PROTECTION(ACCESS,ADDRESS)					\
-  if(SIGBUS == sigsetjmp(env,1)){						\
-    uhal::exception::UIOBusError e;\
+#define BUS_ERROR_PROTECTION(ACCESS,ADDRESS) \
+  if (true) {\
     char error_message[] = "Reg: 0x00000000"; \
-    snprintf(error_message,strlen(error_message),"Reg: 0x%08X",ADDRESS); \
-    e.append(error_message); \
-    throw e;\
-  }else{ \
-    ACCESS;					\
+    snprintf(error_message,strlen(error_message)+1,"Reg: 0x%08X",ADDRESS); \
+    uhal::SigBusGuard lGuard;\
+    lGuard.protect([&] {ACCESS;}, error_message);\
   }
-
-
-
-//Signal handling for sigbus
-sigjmp_buf static env;
-void static signal_handler(int sig){
-  if(SIGBUS == sig){
-    siglongjmp(env,sig);    //jump back to the point in the stack described by env (set by sigsetjmp) and act like the value "sig" was returned in that context
-  }
-}
 
 namespace uhal {  
 
-  void UIO::SetupSignalHandler(){
-    //this is here so the signal_handler can stay static
-    memset(&saBusError,0,sizeof(saBusError)); //Clear struct
-    saBusError.sa_handler = signal_handler; //assign signal handler
-    sigemptyset(&saBusError.sa_mask);
-    sigaction(SIGBUS, &saBusError,&saBusError_old);  //install new signal handler (save the old one)
-  }
-  void UIO::RemoveSignalHandler(){    
-    sigaction(SIGBUS,&saBusError_old,NULL); //restore the signal handler from before creation for SIGBUS
-  }
 
   ValHeader UIO::implementWrite (const uint32_t& aAddr, const uint32_t& aValue) {
 
